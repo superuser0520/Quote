@@ -15,7 +15,8 @@ import {
   AlertCircle,
   DollarSign,
   TrendingUp,
-  ChevronRight
+  ChevronRight,
+  Trash2
 } from 'lucide-react';
 
 interface DocumentListProps {
@@ -28,6 +29,9 @@ interface DocumentListProps {
   onGenerateDO: (q: Quotation) => void;
   onGenerateInvoice: (q: Quotation) => void;
   onCheckPOInEmail: (q?: Quotation) => void;
+  onDeleteQuotation: (q: Quotation) => void;
+  onDeleteDeliveryOrder: (deliveryOrder: DeliveryOrder) => void;
+  onDeleteInvoice: (invoice: Invoice) => void;
 }
 
 export const DocumentList: React.FC<DocumentListProps> = ({
@@ -40,6 +44,9 @@ export const DocumentList: React.FC<DocumentListProps> = ({
   onGenerateDO,
   onGenerateInvoice,
   onCheckPOInEmail,
+  onDeleteQuotation,
+  onDeleteDeliveryOrder,
+  onDeleteInvoice,
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'quotes' | 'dos' | 'invoices'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -290,13 +297,23 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                       </td>
                       {/* Actions */}
                       <td className="py-3.5 px-4 text-right">
-                        <button
-                          onClick={() => onSelectQuotation(q)}
-                          className="px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-bold text-xs transition inline-flex items-center gap-1.5 shadow-xs"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          View / Print
-                        </button>
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            onClick={() => onSelectQuotation(q)}
+                            className="px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-bold text-xs transition inline-flex items-center gap-1.5 shadow-xs"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            View / Print
+                          </button>
+                          <button
+                            onClick={() => onDeleteQuotation(q)}
+                            className="p-1.5 text-red-600 hover:text-white hover:bg-red-600 border border-red-200 rounded-lg transition"
+                            title="Delete quotation and its linked records"
+                            aria-label={`Delete quotation ${q.quoteNumber}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -331,6 +348,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-right">
+                      <div className="inline-flex items-center gap-2">
                       {quotations.find((q) => q.id === doDoc.quotationId) && (
                         <button
                           onClick={() => onSelectQuotation(quotations.find((q) => q.id === doDoc.quotationId)!)}
@@ -339,6 +357,15 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                           View DO
                         </button>
                       )}
+                        <button
+                          onClick={() => onDeleteDeliveryOrder(doDoc)}
+                          className="p-1.5 text-red-600 hover:text-white hover:bg-red-600 border border-red-200 rounded-lg transition"
+                          title="Delete delivery order"
+                          aria-label={`Delete delivery order ${doDoc.doNumber}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -374,6 +401,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-right">
+                      <div className="inline-flex items-center gap-2">
                       {quotations.find((q) => q.id === inv.quotationId) && (
                         <button
                           onClick={() => onSelectQuotation(quotations.find((q) => q.id === inv.quotationId)!)}
@@ -382,6 +410,15 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                           View Invoice
                         </button>
                       )}
+                        <button
+                          onClick={() => onDeleteInvoice(inv)}
+                          className="p-1.5 text-red-600 hover:text-white hover:bg-red-600 border border-red-200 rounded-lg transition"
+                          title="Delete invoice"
+                          aria-label={`Delete invoice ${inv.invoiceNumber}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

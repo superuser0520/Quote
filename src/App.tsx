@@ -127,6 +127,15 @@ export default function App() {
       }
     } catch (err) {
       console.error('Login error:', err);
+      const code = (err as { code?: string })?.code;
+      const message = code === 'auth/unauthorized-domain'
+        ? 'Google sign-in is blocked for this address. Add your HTTPS domain in Firebase Authorized domains.'
+        : code === 'auth/popup-blocked'
+        ? 'The sign-in popup was blocked by your browser. Allow popups and try again.'
+        : code === 'auth/popup-closed-by-user'
+        ? 'Google sign-in was cancelled.'
+        : `Google sign-in failed${code ? ` (${code})` : ''}.`;
+      showToast(message, 'info');
     }
   };
 
@@ -184,6 +193,45 @@ export default function App() {
     syncAndSaveData(quotations, deliveryOrders, updated);
     setView('list');
     showToast(`Manual Invoice ${newInv.invoiceNumber} registered!`);
+  };
+
+  const handleDeleteQuotation = (quote: Quotation) => {
+    const linkedDOs = deliveryOrders.filter((item) => item.quotationId === quote.id);
+    const linkedInvoices = invoices.filter((item) => item.quotationId === quote.id);
+    const linkedMessage = linkedDOs.length || linkedInvoices.length
+      ? ` This also deletes ${linkedDOs.length} linked delivery order(s) and ${linkedInvoices.length} linked invoice(s).`
+      : '';
+    if (!window.confirm(`Delete quotation ${quote.quoteNumber}?${linkedMessage} This cannot be undone.`)) return;
+
+    const updatedQuotes = quotations.filter((item) => item.id !== quote.id);
+    const updatedDOs = deliveryOrders.filter((item) => item.quotationId !== quote.id);
+    const updatedInvoices = invoices.filter((item) => item.quotationId !== quote.id);
+    setQuotations(updatedQuotes);
+    setDeliveryOrders(updatedDOs);
+    setInvoices(updatedInvoices);
+    saveQuotations(updatedQuotes);
+    saveDeliveryOrders(updatedDOs);
+    saveInvoices(updatedInvoices);
+    syncAndSaveData(updatedQuotes, updatedDOs, updatedInvoices);
+    showToast(`Quotation ${quote.quoteNumber} deleted.`, 'info');
+  };
+
+  const handleDeleteDeliveryOrder = (deliveryOrder: DeliveryOrder) => {
+    if (!window.confirm(`Delete delivery order ${deliveryOrder.doNumber}? This cannot be undone.`)) return;
+    const updatedDOs = deliveryOrders.filter((item) => item.id !== deliveryOrder.id);
+    setDeliveryOrders(updatedDOs);
+    saveDeliveryOrders(updatedDOs);
+    syncAndSaveData(quotations, updatedDOs, invoices);
+    showToast(`Delivery order ${deliveryOrder.doNumber} deleted.`, 'info');
+  };
+
+  const handleDeleteInvoice = (invoice: Invoice) => {
+    if (!window.confirm(`Delete invoice ${invoice.invoiceNumber}? This cannot be undone.`)) return;
+    const updatedInvoices = invoices.filter((item) => item.id !== invoice.id);
+    setInvoices(updatedInvoices);
+    saveInvoices(updatedInvoices);
+    syncAndSaveData(quotations, deliveryOrders, updatedInvoices);
+    showToast(`Invoice ${invoice.invoiceNumber} deleted.`, 'info');
   };
 
   // Quick Convert: Generate Delivery Order (DO)
@@ -544,6 +592,9 @@ export default function App() {
               if (q) setSelectedQuote(q);
               setIsPOCheckerOpen(true);
             }}
+            onDeleteQuotation={handleDeleteQuotation}
+            onDeleteDeliveryOrder={handleDeleteDeliveryOrder}
+            onDeleteInvoice={handleDeleteInvoice}
           />
         )}
 
