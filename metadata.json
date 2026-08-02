@@ -1,0 +1,6 @@
+{
+  "name": "Quotation, DO & Invoice Generator",
+  "description": "Generate Quotations, Delivery Orders (DO), and Invoices with Google Sheets tracking integration and Gmail Purchase Order status tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

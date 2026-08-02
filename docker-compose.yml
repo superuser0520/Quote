@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  quotexpress:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quotexpress-pi
+    restart: always
+    ports:
+      - "8080:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    volumes:
+      # Persistent host folder for local database file db.json
+      - ./data:/app/data
+
+volumes:
+  quotexpress_data:
