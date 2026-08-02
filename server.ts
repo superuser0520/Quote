@@ -9,9 +9,13 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
-// Local Raspberry Pi persistent database path
-const DATA_DIR = path.join(process.cwd(), 'data');
+// Local Raspberry Pi persistent database path. In Docker this is /app/data,
+// backed by a bind-mounted directory on the Pi host.
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
+const DB_TEMP_FILE = path.join(DATA_DIR, 'db.json.tmp');
 
 // Ensure data directory exists on Raspberry Pi filesystem
 if (!fs.existsSync(DATA_DIR)) {
@@ -55,7 +59,9 @@ app.post('/api/db', (req, res) => {
       invoices: invoices || [],
     };
 
-    fs.writeFileSync(DB_FILE, JSON.stringify(dbPayload, null, 2), 'utf-8');
+    // Write and rename so an interrupted write does not leave db.json partial.
+    fs.writeFileSync(DB_TEMP_FILE, JSON.stringify(dbPayload, null, 2), 'utf-8');
+    fs.renameSync(DB_TEMP_FILE, DB_FILE);
     return res.json({ success: true, message: 'Saved to Raspberry Pi local database', updatedAt: dbPayload.updatedAt });
   } catch (err: any) {
     console.error('Error writing Pi DB:', err);

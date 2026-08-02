@@ -8,13 +8,13 @@ services:
     container_name: quotexpress-pi
     restart: always
     ports:
-      - "1000:3000"
+      # Only expose the app to the Pi itself; cloudflared connects here.
+      - "127.0.0.1:1000:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - DATA_DIR=/app/data
     volumes:
-      # Persistent host folder for local database file db.json
-      - ./data:/app/data
-
-volumes:
-  quotexpress_data:
+      # Defaults to ./data on the Raspberry Pi. Set PI_DATA_DIR in .env if
+      # you want an absolute host path such as /srv/quotexpress/data.
+      - ${PI_DATA_DIR:-./data}:/app/data
