@@ -45,7 +45,7 @@ interface AnalyticsDashboardProps {
 export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   quotations,
   invoices,
-  currency = 'USD',
+  currency = 'MYR',
   onOpenPiGuide,
 }) => {
   // Cost inputs state

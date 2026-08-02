@@ -552,7 +552,7 @@ export default function App() {
             <AnalyticsDashboard
               quotations={quotations}
               invoices={invoices}
-              currency={companyProfile.defaultNotes.includes('RM') ? 'MYR' : 'USD'}
+              currency="MYR"
               onOpenPiGuide={() => setIsPiGuideOpen(true)}
             />
           </div>

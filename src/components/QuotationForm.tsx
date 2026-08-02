@@ -28,7 +28,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
     initialQuotation?.validUntil ||
       new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
-  const [currency, setCurrency] = useState(initialQuotation?.currency || 'USD');
+  const [currency, setCurrency] = useState(initialQuotation?.currency || 'MYR');
 
   const [client, setClient] = useState({
     name: initialQuotation?.client.name || '',

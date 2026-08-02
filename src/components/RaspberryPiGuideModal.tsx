@@ -106,20 +106,21 @@ services:
     container_name: quotexpress-pi
     restart: always
     ports:
-      - "8080:80"
+      - "1000:3000"
     environment:
       - NODE_ENV=production
+      - PORT=3000
     volumes:
-      - ./data:/usr/share/nginx/html/data`;
+      - ./data:/app/data`;
 
-  const cloudflareCommand = `cloudflared tunnel --url http://localhost:8080`;
+  const cloudflareCommand = `cloudflared tunnel --url http://localhost:1000`;
 
   const nginxReverseProxyConfig = `server {
     listen 80;
     server_name quotexpress.yourdomain.com;
 
     location / {
-        proxy_pass http://localhost:8080;
+        proxy_pass http://localhost:1000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
@@ -235,11 +236,11 @@ services:
                 <div className="space-y-2">
                   <p className="font-bold text-slate-700">Step 2: Clone repository & build container</p>
                   <div className="bg-slate-900 text-indigo-300 p-3 rounded-xl font-mono relative space-y-1">
-                    <div>git clone &lt;your-github-repo-url&gt;</div>
-                    <div>cd &lt;repo-folder&gt;</div>
+                    <div>git clone https://github.com/superuser0520/Quote.git</div>
+                    <div>cd Quote</div>
                     <div>docker compose up -d --build</div>
                     <button
-                      onClick={() => handleCopy('docker compose up -d --build', 'step2')}
+                      onClick={() => handleCopy('git clone https://github.com/superuser0520/Quote.git && cd Quote && docker compose up -d --build', 'step2')}
                       className="absolute right-2 top-2 p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] font-sans font-bold flex items-center gap-1"
                     >
                       {copiedCmd === 'step2' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}

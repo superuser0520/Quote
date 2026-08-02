@@ -49,7 +49,7 @@ export const ManualRecordModal: React.FC<ManualRecordModalProps> = ({
   const [clientAddress, setClientAddress] = useState('');
 
   // Common Doc Meta
-  const [currency, setCurrency] = useState('USD');
+  const [currency, setCurrency] = useState('MYR');
   const [docNumber, setDocNumber] = useState('');
   const [refQuoteNumber, setRefQuoteNumber] = useState('');
   const [poNumber, setPoNumber] = useState('');
