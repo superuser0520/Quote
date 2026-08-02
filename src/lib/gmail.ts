@@ -4,17 +4,52 @@ import { Quotation, GmailEmailMessage } from '../types';
  * Gmail API utility for sending emails directly and scanning incoming PO emails.
  */
 
-function createMimeMessage(to: string, subject: string, bodyText: string, cc?: string): string {
+interface GmailAttachment {
+  filename: string;
+  mimeType: string;
+  data: Uint8Array;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function createMimeMessage(to: string, subject: string, bodyText: string, cc?: string, attachment?: GmailAttachment): string {
   const nl = '\r\n';
+  const boundary = `quotexpress-${Date.now()}`;
   const headers = [
     `To: ${to}`,
     cc ? `Cc: ${cc}` : '',
-    `Subject: =?utf-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
-    `Content-Type: text/plain; charset=utf-8`,
+    `Subject: =?utf-8?B?${bytesToBase64(new TextEncoder().encode(subject))}?=`,
     `MIME-Version: 1.0`,
+    attachment ? `Content-Type: multipart/mixed; boundary="${boundary}"` : `Content-Type: text/plain; charset=utf-8`,
   ].filter(Boolean);
 
-  const fullMessage = headers.join(nl) + nl + nl + bodyText;
+  let content = bodyText;
+  if (attachment) {
+    const attachmentBase64 = bytesToBase64(attachment.data).match(/.{1,76}/g)?.join(nl) || '';
+    content = [
+      `--${boundary}`,
+      'Content-Type: text/plain; charset=utf-8',
+      'Content-Transfer-Encoding: 8bit',
+      '',
+      bodyText,
+      '',
+      `--${boundary}`,
+      `Content-Type: ${attachment.mimeType}; name="${attachment.filename}"`,
+      'Content-Transfer-Encoding: base64',
+      `Content-Disposition: attachment; filename="${attachment.filename}"`,
+      '',
+      attachmentBase64,
+      `--${boundary}--`,
+    ].join(nl);
+  }
+  const fullMessage = headers.join(nl) + nl + nl + content;
 
   // Convert string to UTF-8 array then to base64url string
   const utf8Encoder = new TextEncoder();
@@ -38,13 +73,14 @@ export async function sendGmailDirectly(
   to: string,
   subject: string,
   bodyText: string,
-  cc?: string
+  cc?: string,
+  attachment?: GmailAttachment
 ): Promise<{ id: string; threadId: string }> {
   if (!accessToken) {
     throw new Error('Not authenticated with Google. Please log in with Google to send emails directly.');
   }
 
-  const rawMessage = createMimeMessage(to, subject, bodyText, cc);
+  const rawMessage = createMimeMessage(to, subject, bodyText, cc, attachment);
 
   const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
     method: 'POST',

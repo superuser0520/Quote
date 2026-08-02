@@ -32,6 +32,7 @@ interface DocumentListProps {
   onDeleteQuotation: (q: Quotation) => void;
   onDeleteDeliveryOrder: (deliveryOrder: DeliveryOrder) => void;
   onDeleteInvoice: (invoice: Invoice) => void;
+  onMarkDeliveryOrderDelivered: (deliveryOrder: DeliveryOrder) => void;
 }
 
 export const DocumentList: React.FC<DocumentListProps> = ({
@@ -47,6 +48,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
   onDeleteQuotation,
   onDeleteDeliveryOrder,
   onDeleteInvoice,
+  onMarkDeliveryOrderDelivered,
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'quotes' | 'dos' | 'invoices'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -349,6 +351,15 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <div className="inline-flex items-center gap-2">
+                        {doDoc.status !== 'Delivered' && (
+                          <button
+                            onClick={() => onMarkDeliveryOrderDelivered(doDoc)}
+                            className="px-3 py-1 bg-emerald-600 text-white rounded-lg font-bold text-xs hover:bg-emerald-700 transition"
+                            title="Mark this delivery order as delivered"
+                          >
+                            Mark delivered
+                          </button>
+                        )}
                       {quotations.find((q) => q.id === doDoc.quotationId) && (
                         <button
                           onClick={() => onSelectQuotation(quotations.find((q) => q.id === doDoc.quotationId)!)}

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Quotation, LineItem, CompanyProfile } from '../types';
+import { Quotation, LineItem, CompanyProfile, ClientDetails } from '../types';
 import { Plus, Trash2, ArrowLeft, Save, Sparkles, Building, User, Mail, Phone, MapPin, Calendar, DollarSign } from 'lucide-react';
 
 interface QuotationFormProps {
   initialQuotation?: Quotation | null;
   companyProfile: CompanyProfile;
+  savedClients?: ClientDetails[];
   onSave: (quote: Quotation) => void;
   onCancel: () => void;
 }
@@ -12,6 +13,7 @@ interface QuotationFormProps {
 export const QuotationForm: React.FC<QuotationFormProps> = ({
   initialQuotation,
   companyProfile,
+  savedClients = [],
   onSave,
   onCancel,
 }) => {
@@ -237,6 +239,29 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
             </h3>
             <span className="text-[11px] text-slate-400">Recipient Details</span>
           </div>
+
+          {!isEditing && savedClients.length > 0 && (
+            <div className="mb-4">
+              <label className="block text-[10px] font-bold text-indigo-600 uppercase mb-1">
+                Existing customer — auto-fill details
+              </label>
+              <select
+                defaultValue=""
+                onChange={(event) => {
+                  const selected = savedClients[Number(event.target.value)];
+                  if (selected) setClient({ ...selected });
+                }}
+                className="w-full px-3 py-2 border border-indigo-200 bg-indigo-50 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              >
+                <option value="">Select an existing customer...</option>
+                {savedClients.map((savedClient, index) => (
+                  <option key={`${savedClient.email}-${savedClient.companyName}-${index}`} value={index}>
+                    {savedClient.companyName || savedClient.name}{savedClient.email ? ` — ${savedClient.email}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

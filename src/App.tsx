@@ -234,6 +234,19 @@ export default function App() {
     showToast(`Invoice ${invoice.invoiceNumber} deleted.`, 'info');
   };
 
+  const handleMarkDeliveryOrderDelivered = (deliveryOrder: DeliveryOrder) => {
+    const timestamp = new Date().toISOString();
+    const updatedDOs: DeliveryOrder[] = deliveryOrders.map((item) =>
+      item.id === deliveryOrder.id
+        ? { ...item, status: 'Delivered', deliveredAt: timestamp, updatedAt: timestamp }
+        : item
+    );
+    setDeliveryOrders(updatedDOs);
+    saveDeliveryOrders(updatedDOs);
+    syncAndSaveData(quotations, updatedDOs, invoices);
+    showToast(`Delivery order ${deliveryOrder.doNumber} marked as delivered.`);
+  };
+
   // Quick Convert: Generate Delivery Order (DO)
   const handleGenerateDO = (q: Quotation) => {
     const existingDO = deliveryOrders.find((d) => d.quotationId === q.id);
@@ -507,6 +520,14 @@ export default function App() {
 
   // Filter pending PO count
   const pendingPOCount = quotations.filter((q) => q.status === 'Sent (Pending PO)').length;
+  const savedClients = Array.from(
+    new Map(
+      quotations.map((quote) => [
+        `${quote.client.email.toLowerCase()}|${quote.client.companyName.toLowerCase()}|${quote.client.name.toLowerCase()}`,
+        quote.client,
+      ])
+    ).values()
+  );
 
   // Active delivery order & invoice for preview
   const activeDO = selectedQuote
@@ -595,6 +616,7 @@ export default function App() {
             onDeleteQuotation={handleDeleteQuotation}
             onDeleteDeliveryOrder={handleDeleteDeliveryOrder}
             onDeleteInvoice={handleDeleteInvoice}
+            onMarkDeliveryOrderDelivered={handleMarkDeliveryOrderDelivered}
           />
         )}
 
@@ -612,6 +634,7 @@ export default function App() {
         {view === 'create' && (
           <QuotationForm
             companyProfile={companyProfile}
+            savedClients={savedClients}
             onSave={handleSaveQuotation}
             onCancel={() => setView('list')}
           />
@@ -621,6 +644,7 @@ export default function App() {
           <QuotationForm
             initialQuotation={selectedQuote}
             companyProfile={companyProfile}
+            savedClients={savedClients}
             onSave={handleSaveQuotation}
             onCancel={() => setView('preview')}
           />

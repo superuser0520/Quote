@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Quotation, DeliveryOrder, Invoice, CompanyProfile } from '../types';
 import { sendGmailDirectly } from '../lib/gmail';
+import { createQuotationPdf } from '../lib/quotationPdf';
 import {
   Mail,
   X,
@@ -218,7 +219,10 @@ ${companyProfile.website ? `Website: ${companyProfile.website}` : ''}`;
     try {
       setIsSending(true);
       setSendError(null);
-      await sendGmailDirectly(accessToken, recipient, subject, body, ccEmail || undefined);
+      const attachment = docType === 'quotation'
+        ? createQuotationPdf(quotation, companyProfile)
+        : undefined;
+      await sendGmailDirectly(accessToken, recipient, subject, body, ccEmail || undefined, attachment);
 
       setSendSuccess(true);
       if (onMarkAsEmailed) {
@@ -251,6 +255,9 @@ ${companyProfile.website ? `Website: ${companyProfile.website}` : ''}`;
               <p className="text-xs text-slate-400">
                 Client: <span className="text-indigo-300 font-semibold">{quotation.client.name}</span> ({quotation.quoteNumber})
               </p>
+              {docType === 'quotation' && (
+                <p className="text-[11px] text-emerald-300 mt-0.5">Quotation PDF will be attached automatically</p>
+              )}
             </div>
           </div>
           <button
