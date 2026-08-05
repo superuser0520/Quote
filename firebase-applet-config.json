@@ -1,11 +1,11 @@
 {
-  "projectId": "teslamate-481703",
-  "appId": "1:815421446206:web:89f4d9c1f6b73762ef996f",
-  "apiKey": "AIzaSyAwOH1v7IbXFWBj9H_jbNmmYkNCbXDpVdg",
-  "authDomain": "teslamate-481703.firebaseapp.com",
-  "storageBucket": "teslamate-481703.firebasestorage.app",
-  "messagingSenderId": "815421446206",
-  "measurementId": "",
-  "oAuthClientId": "815421446206-1f39nggfp4u6mn7g9nh1qj1rka4pshaa.apps.googleusercontent.com",
+  "projectId": "quote-79d97",
+  "appId": "1:493524160588:web:3ee0a9c3aacd77338da4e9",
+  "apiKey": "AIzaSyBSxvhjMoYlRd-tbiTyb8osPbwpgrrdPFY",
+  "authDomain": "quote-79d97.firebaseapp.com",
+  "storageBucket": "quote-79d97.firebasestorage.app",
+  "messagingSenderId": "493524160588",
+  "measurementId": "G-6NP1L5VC21",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }
