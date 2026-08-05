@@ -102,15 +102,6 @@ export function createDocumentPdf(
   pdf.text(clientLines, LEFT, y);
   y += clientLines.length * 4 + 8;
 
-  if (type === 'do') {
-    pdf.setFillColor(239, 246, 255);
-    pdf.roundedRect(LEFT, y, CONTENT_WIDTH, 12, 2, 2, 'F');
-    pdf.setFont('helvetica', 'bold');
-    pdf.text(`Delivery status: ${deliveryOrder!.status}`, LEFT + 4, y + 7.5);
-    if (deliveryOrder!.trackingRef) pdf.text(`Tracking reference: ${deliveryOrder!.trackingRef}`, RIGHT - 4, y + 7.5, { align: 'right' });
-    y += 17;
-  }
-
   const columns: Column[] = type === 'do'
     ? [
         { label: '#', width: 10, align: 'center' },
@@ -145,7 +136,7 @@ export function createDocumentPdf(
   quotation.items.forEach((item, index) => {
     const description = pdf.splitTextToSize(item.description || '-', columns[1].width - 4) as string[];
     const remark = type === 'do'
-      ? (pdf.splitTextToSize(item.remark || item.notes || 'Good condition', columns[3].width - 4) as string[])
+      ? (pdf.splitTextToSize(item.remark || item.notes || '-', columns[3].width - 4) as string[])
       : [];
     const rowHeight = Math.max(8, Math.max(description.length, remark.length) * 4 + 3);
     if (y + rowHeight > PAGE_BOTTOM) {

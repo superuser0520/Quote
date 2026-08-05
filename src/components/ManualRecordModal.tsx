@@ -26,6 +26,7 @@ interface ManualRecordModalProps {
   isOpen: boolean;
   onClose: () => void;
   companyProfile: CompanyProfile;
+  quotations: Quotation[];
   onAddQuotation: (q: Quotation) => void;
   onAddDeliveryOrder: (doObj: DeliveryOrder) => void;
   onAddInvoice: (inv: Invoice) => void;
@@ -35,6 +36,7 @@ export const ManualRecordModal: React.FC<ManualRecordModalProps> = ({
   isOpen,
   onClose,
   companyProfile,
+  quotations,
   onAddQuotation,
   onAddDeliveryOrder,
   onAddInvoice,
@@ -52,6 +54,7 @@ export const ManualRecordModal: React.FC<ManualRecordModalProps> = ({
   const [currency, setCurrency] = useState('MYR');
   const [docNumber, setDocNumber] = useState('');
   const [refQuoteNumber, setRefQuoteNumber] = useState('');
+  const [selectedQuotationId, setSelectedQuotationId] = useState('');
   const [poNumber, setPoNumber] = useState('');
   const [dateStr, setDateStr] = useState(new Date().toISOString().substring(0, 10));
   const [dueDateStr, setDueDateStr] = useState('');
@@ -131,6 +134,29 @@ export const ManualRecordModal: React.FC<ManualRecordModalProps> = ({
     }, 0);
   };
 
+  const selectLinkedQuotation = (quotationId: string) => {
+    setSelectedQuotationId(quotationId);
+    const quote = quotations.find((item) => item.id === quotationId);
+    if (!quote) return;
+    setRefQuoteNumber(quote.quoteNumber);
+    setPoNumber(quote.poNumber || '');
+    setCurrency(quote.currency);
+    setClientName(quote.client.name);
+    setCompanyName(quote.client.companyName);
+    setClientEmail(quote.client.email);
+    setClientPhone(quote.client.phone);
+    setClientAddress(quote.client.address);
+    setItems(quote.items.map((item) => ({
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      unitCost: item.unitCost || 0,
+      taxRate: item.taxRate,
+      discount: item.discount,
+      remark: item.remark || item.notes || '',
+    })));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -180,6 +206,7 @@ export const ManualRecordModal: React.FC<ManualRecordModalProps> = ({
         currency,
         status: quoteStatus,
         poNumber: poNumber || undefined,
+        poReceivedDate: poNumber ? dateStr : undefined,
         notes: companyProfile.defaultNotes || 'Thank you for your business.',
         terms: companyProfile.defaultTerms || 'Payment NET 30 Days.',
         createdAt: nowIso,
@@ -198,7 +225,7 @@ export const ManualRecordModal: React.FC<ManualRecordModalProps> = ({
       const newDO: DeliveryOrder = {
         id: `do-manual-${Date.now()}`,
         doNumber: docNumber || `DO-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
-        quotationId: `q-manual-ref-${Date.now()}`,
+        quotationId: selectedQuotationId || `q-manual-ref-${Date.now()}`,
         quoteNumber: refQuoteNumber || 'MANUAL-REF',
         client: clientObj,
         deliveryDate: dateStr || new Date().toISOString().substring(0, 10),
@@ -239,7 +266,7 @@ export const ManualRecordModal: React.FC<ManualRecordModalProps> = ({
       const newInv: Invoice = {
         id: `inv-manual-${Date.now()}`,
         invoiceNumber: docNumber || `INV-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
-        quotationId: `q-manual-ref-${Date.now()}`,
+        quotationId: selectedQuotationId || `q-manual-ref-${Date.now()}`,
         quoteNumber: refQuoteNumber || 'MANUAL-REF',
         poNumber: poNumber || undefined,
         client: clientObj,
@@ -344,6 +371,24 @@ export const ManualRecordModal: React.FC<ManualRecordModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 flex-1 text-xs">
           {/* Document Header Fields */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-4">
+            {docType !== 'quotation' && (
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Link to Existing Quotation:</label>
+                <select
+                  value={selectedQuotationId}
+                  onChange={(e) => selectLinkedQuotation(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">No link — enter a quotation reference manually</option>
+                  {quotations.map((quote) => (
+                    <option key={quote.id} value={quote.id}>
+                      {quote.quoteNumber} — {quote.client.companyName || quote.client.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-500 mt-1">Selecting a quotation copies its customer, PO and line items into this record.</p>
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">

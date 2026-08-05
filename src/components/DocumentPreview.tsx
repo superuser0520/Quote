@@ -421,7 +421,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             </div>
 
             {/* Bill To */}
-            <div className="bg-slate-50 rounded-lg p-5 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs border border-slate-200">
+            <div className="bg-slate-50 rounded-lg p-5 mb-6 text-xs border border-slate-200">
               <div>
                 <p className="text-slate-400 font-bold uppercase tracking-wider mb-1">To / Prepared For:</p>
                 {quotation.client.companyName && (
@@ -582,13 +582,6 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                 <p className="font-semibold text-slate-800">{quotation.client.name}</p>
                 <p className="text-slate-600 mt-1 whitespace-pre-line">{quotation.client.address}</p>
               </div>
-              <div className="space-y-1 text-slate-600 md:text-right">
-                <p className="text-slate-400 font-bold uppercase tracking-wider mb-1">Dispatch Info & Contact:</p>
-                <p>Driver / Carrier: {deliveryOrder?.driverName || 'Standard Express'}</p>
-                <p>Tracking Ref: {deliveryOrder?.trackingRef || 'TRK-2026-PENDING'}</p>
-                <p>Contact Email: {quotation.client.email || '-'}</p>
-                <p>Contact Phone: {quotation.client.phone || '-'}</p>
-              </div>
             </div>
 
             {/* DO Items Table (NO PRICING AMOUNTS) */}
@@ -618,7 +611,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                       {item.quantity}
                     </td>
                     <td className="py-3 px-3 text-slate-600 italic">
-                      {item.remark || item.notes || 'Good Condition'}
+                      {item.remark || item.notes || '-'}
                     </td>
                   </tr>
                 ))}
@@ -626,7 +619,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             </table>
 
             {/* Delivery Order Summary Box (NO PRICES) */}
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Item Lines:</p>
                 <p className="font-bold text-slate-900 text-sm mt-0.5">{quotation.items.length} Line Items</p>
@@ -636,10 +629,6 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                 <p className="font-bold text-indigo-700 text-sm mt-0.5">
                   {quotation.items.reduce((sum, item) => sum + item.quantity, 0)} Units
                 </p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Delivery Status:</p>
-                <p className="font-bold text-emerald-700 text-sm mt-0.5">{deliveryOrder?.status || 'Pending Delivery'}</p>
               </div>
             </div>
 
@@ -656,7 +645,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             {/* Computer-generated document notice */}
             <div className="mt-8 pt-5 border-t border-slate-200 text-center text-xs text-slate-600">
               <p className="font-semibold text-slate-800">Document remark: This is a computer-generated document and is valid without a signature.</p>
-              <p className="mt-1 text-[11px] text-slate-500">Delivery status and completion details are maintained electronically.</p>
+              <p className="mt-1 text-[11px] text-slate-500">Issued electronically by {companyProfile.name}.</p>
             </div>
           </div>
         )}

@@ -189,6 +189,22 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const totalNetProfit = totalPaidRevenue - totalCalculatedCost;
   const overallProfitMargin = totalPaidRevenue > 0 ? ((totalNetProfit / totalPaidRevenue) * 100) : 0;
 
+  // Accepted work that has a PO but has not been paid yet.
+  const unrealisedProfit = useMemo(() => {
+    const acceptedStatuses: Quotation['status'][] = ['PO Received', 'DO Issued', 'Invoice Issued'];
+    return filteredQuotations
+      .filter((quote) => acceptedStatuses.includes(quote.status) && Boolean(quote.poNumber))
+      .reduce((total, quote) => {
+        const estimatedCost = quote.items.reduce((cost, item) => {
+          if (item.unitCost !== undefined && item.unitCost > 0) {
+            return cost + item.unitCost * item.quantity;
+          }
+          return cost + item.total * (defaultCostMargin / 100);
+        }, 0);
+        return total + quote.grandTotal - estimatedCost;
+      }, 0);
+  }, [filteredQuotations, defaultCostMargin]);
+
   // Funnel Data for Pie Chart
   const conversionFunnelData = [
     { name: 'Drafts', value: filteredQuotations.filter((q) => q.status === 'Draft').length, color: '#94a3b8' },
@@ -253,7 +269,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       </div>
 
       {/* KPI Cards Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Total Revenue Card */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between">
@@ -316,6 +332,22 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 {overallProfitMargin.toFixed(1)}%
               </span>
             </p>
+          </div>
+        </div>
+
+        {/* Unrealised Profit from accepted POs */}
+        <div className="bg-white p-5 rounded-2xl border border-blue-200 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Unrealised PO Profit</span>
+            <div className="w-9 h-9 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl font-black text-blue-700">
+              {currency} {unrealisedProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">PO received but payment is not yet realised</p>
           </div>
         </div>
 

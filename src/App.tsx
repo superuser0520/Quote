@@ -181,18 +181,28 @@ export default function App() {
 
   const handleAddManualDO = (newDO: DeliveryOrder) => {
     const updated = [newDO, ...deliveryOrders];
+    const updatedQuotes = quotations.map((quote) => quote.id === newDO.quotationId
+      ? { ...quote, deliveryOrderId: newDO.id, deliveryOrderNumber: newDO.doNumber, status: quote.status === 'Paid' || quote.status === 'Invoice Issued' ? quote.status : 'DO Issued' as const, updatedAt: new Date().toISOString() }
+      : quote);
     setDeliveryOrders(updated);
+    setQuotations(updatedQuotes);
     saveDeliveryOrders(updated);
-    syncAndSaveData(quotations, updated);
+    saveQuotations(updatedQuotes);
+    syncAndSaveData(updatedQuotes, updated);
     setView('list');
     showToast(`Manual Delivery Order ${newDO.doNumber} registered!`);
   };
 
   const handleAddManualInvoice = (newInv: Invoice) => {
     const updated = [newInv, ...invoices];
+    const updatedQuotes = quotations.map((quote) => quote.id === newInv.quotationId
+      ? { ...quote, invoiceId: newInv.id, invoiceNumber: newInv.invoiceNumber, poNumber: newInv.poNumber || quote.poNumber, status: newInv.status === 'Paid' ? 'Paid' as const : 'Invoice Issued' as const, updatedAt: new Date().toISOString() }
+      : quote);
     setInvoices(updated);
+    setQuotations(updatedQuotes);
     saveInvoices(updated);
-    syncAndSaveData(quotations, deliveryOrders, updated);
+    saveQuotations(updatedQuotes);
+    syncAndSaveData(updatedQuotes, deliveryOrders, updated);
     setView('list');
     showToast(`Manual Invoice ${newInv.invoiceNumber} registered!`);
   };
@@ -733,6 +743,7 @@ export default function App() {
         isOpen={isManualRecordOpen}
         onClose={() => setIsManualRecordOpen(false)}
         companyProfile={companyProfile}
+        quotations={quotations}
         onAddQuotation={handleAddManualQuotation}
         onAddDeliveryOrder={handleAddManualDO}
         onAddInvoice={handleAddManualInvoice}

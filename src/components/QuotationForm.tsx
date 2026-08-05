@@ -57,6 +57,10 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
   const [notes, setNotes] = useState(initialQuotation?.notes || companyProfile.defaultNotes || '');
   const [terms, setTerms] = useState(initialQuotation?.terms || companyProfile.defaultTerms || '');
   const [status, setStatus] = useState(initialQuotation?.status || 'Sent (Pending PO)');
+  const [poNumber, setPoNumber] = useState(initialQuotation?.poNumber || '');
+  const [poReceivedDate, setPoReceivedDate] = useState(
+    initialQuotation?.poReceivedDate || new Date().toISOString().split('T')[0]
+  );
 
   // Helper calculation
   const updateLineItem = (index: number, fields: Partial<LineItem>) => {
@@ -130,8 +134,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
       status: status as any,
       notes,
       terms,
-      poNumber: initialQuotation?.poNumber,
-      poReceivedDate: initialQuotation?.poReceivedDate,
+      poNumber: poNumber.trim() || undefined,
+      poReceivedDate: poNumber.trim() ? poReceivedDate : undefined,
       poEmailSnippet: initialQuotation?.poEmailSnippet,
       poEmailSubject: initialQuotation?.poEmailSubject,
       poEmailSender: initialQuotation?.poEmailSender,
@@ -515,6 +519,48 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
               onChange={(e) => setTerms(e.target.value)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             ></textarea>
+          </div>
+          <div className="md:col-span-2 border-t border-slate-100 pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Quotation Status</label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as Quotation['status'])}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              >
+                <option value="Draft">Draft</option>
+                <option value="Sent (Pending PO)">Sent (Pending PO)</option>
+                <option value="PO Received">PO Received</option>
+                <option value="DO Issued">DO Issued</option>
+                <option value="Invoice Issued">Invoice Issued</option>
+                <option value="Paid">Paid</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </div>
+            {['PO Received', 'DO Issued', 'Invoice Issued', 'Paid'].includes(status) && (
+              <>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">PO Number</label>
+                  <input
+                    required
+                    value={poNumber}
+                    onChange={(e) => setPoNumber(e.target.value)}
+                    placeholder="e.g. PO-2026-001"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">PO Received Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={poReceivedDate}
+                    onChange={(e) => setPoReceivedDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
 
