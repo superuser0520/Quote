@@ -244,7 +244,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
             <span className="text-[11px] text-slate-400">Recipient Details</span>
           </div>
 
-          {!isEditing && savedClients.length > 0 && (
+          {savedClients.length > 0 && (
             <div className="mb-4">
               <label className="block text-[10px] font-bold text-indigo-600 uppercase mb-1">
                 Existing customer — auto-fill details

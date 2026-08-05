@@ -4,6 +4,7 @@ import {
   DeliveryOrder,
   Invoice,
   CompanyProfile,
+  ClientDetails,
   GmailEmailMessage,
 } from './types';
 import {
@@ -533,14 +534,26 @@ export default function App() {
 
   // Filter pending PO count
   const pendingPOCount = quotations.filter((q) => q.status === 'Sent (Pending PO)').length;
-  const savedClients = Array.from(
-    new Map(
-      quotations.map((quote) => [
-        `${quote.client.email.toLowerCase()}|${quote.client.companyName.toLowerCase()}|${quote.client.name.toLowerCase()}`,
-        quote.client,
-      ])
-    ).values()
-  );
+  // Build a reusable customer database from every persisted document type.
+  // Email is the strongest identity; company/contact names cover records without email.
+  const savedClients: ClientDetails[] = Array.from<ClientDetails>(
+    [...quotations, ...deliveryOrders, ...invoices].reduce((clients, document) => {
+      const customer = document.client;
+      const key = customer.email.trim().toLowerCase() ||
+        `${customer.companyName.trim().toLowerCase()}|${customer.name.trim().toLowerCase()}`;
+      const previous = clients.get(key);
+      clients.set(key, previous
+        ? {
+            name: customer.name || previous.name,
+            companyName: customer.companyName || previous.companyName,
+            email: customer.email || previous.email,
+            phone: customer.phone || previous.phone,
+            address: customer.address || previous.address,
+          }
+        : customer);
+      return clients;
+    }, new Map<string, ClientDetails>()).values()
+  ).sort((a, b) => (a.companyName || a.name).localeCompare(b.companyName || b.name));
 
   // Active delivery order & invoice for preview
   const activeDO = selectedQuote
@@ -744,6 +757,7 @@ export default function App() {
         onClose={() => setIsManualRecordOpen(false)}
         companyProfile={companyProfile}
         quotations={quotations}
+        savedClients={savedClients}
         onAddQuotation={handleAddManualQuotation}
         onAddDeliveryOrder={handleAddManualDO}
         onAddInvoice={handleAddManualInvoice}

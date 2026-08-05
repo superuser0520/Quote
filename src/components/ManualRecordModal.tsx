@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Quotation, DeliveryOrder, Invoice, CompanyProfile, LineItem, QuotationStatus } from '../types';
+import { Quotation, DeliveryOrder, Invoice, CompanyProfile, LineItem, QuotationStatus, ClientDetails } from '../types';
 import {
   X,
   Plus,
@@ -27,6 +27,7 @@ interface ManualRecordModalProps {
   onClose: () => void;
   companyProfile: CompanyProfile;
   quotations: Quotation[];
+  savedClients: ClientDetails[];
   onAddQuotation: (q: Quotation) => void;
   onAddDeliveryOrder: (doObj: DeliveryOrder) => void;
   onAddInvoice: (inv: Invoice) => void;
@@ -37,6 +38,7 @@ export const ManualRecordModal: React.FC<ManualRecordModalProps> = ({
   onClose,
   companyProfile,
   quotations,
+  savedClients,
   onAddQuotation,
   onAddDeliveryOrder,
   onAddInvoice,
@@ -155,6 +157,16 @@ export const ManualRecordModal: React.FC<ManualRecordModalProps> = ({
       discount: item.discount,
       remark: item.remark || item.notes || '',
     })));
+  };
+
+  const selectExistingCustomer = (index: string) => {
+    const customer = savedClients[Number(index)];
+    if (!customer) return;
+    setClientName(customer.name);
+    setCompanyName(customer.companyName);
+    setClientEmail(customer.email);
+    setClientPhone(customer.phone);
+    setClientAddress(customer.address);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -518,6 +530,24 @@ export const ManualRecordModal: React.FC<ManualRecordModalProps> = ({
               <Building className="w-4 h-4 text-indigo-600" />
               <span>Client / Organization Information</span>
             </h3>
+
+            {savedClients.length > 0 && (
+              <div>
+                <label className="block font-bold text-indigo-700 mb-1">Existing Customer - Auto-fill All Details:</label>
+                <select
+                  defaultValue=""
+                  onChange={(e) => selectExistingCustomer(e.target.value)}
+                  className="w-full px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Select an existing customer...</option>
+                  {savedClients.map((customer, index) => (
+                    <option key={`${customer.email}-${customer.companyName}-${index}`} value={index}>
+                      {customer.companyName || customer.name}{customer.email ? ` - ${customer.email}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
