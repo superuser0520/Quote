@@ -73,6 +73,20 @@ export const DocumentList: React.FC<DocumentListProps> = ({
     return matchesSearch && matchesStatus;
   });
 
+  const quotationProfit = (quotation: Quotation) => {
+    let hasEstimatedCost = false;
+    const cost = quotation.items.reduce((sum, item) => {
+      if (item.unitCost !== undefined && item.unitCost > 0) {
+        return sum + item.unitCost * item.quantity;
+      }
+      hasEstimatedCost = true;
+      return sum + item.total * 0.4;
+    }, 0);
+    const profit = quotation.grandTotal - cost;
+    const margin = quotation.grandTotal > 0 ? (profit / quotation.grandTotal) * 100 : 0;
+    return { cost, profit, margin, hasEstimatedCost };
+  };
+
   return (
     <div className="max-w-7xl mx-auto py-6 px-4 space-y-6">
       {/* Overview Metric Cards */}
@@ -219,6 +233,8 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                   <th className="py-3 px-4">Client / Company</th>
                   <th className="py-3 px-4">Date</th>
                   <th className="py-3 px-4 text-right">Amount</th>
+                  <th className="py-3 px-4 text-right">Cost</th>
+                  <th className="py-3 px-4 text-right">Profit / Margin</th>
                   <th className="py-3 px-4">Status & PO Ref</th>
                   <th className="py-3 px-4 text-center">Quick Conversions</th>
                   <th className="py-3 px-4 text-right">Actions</th>
@@ -227,12 +243,14 @@ export const DocumentList: React.FC<DocumentListProps> = ({
               <tbody className="divide-y divide-slate-100">
                 {filteredQuotes.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <td colSpan={9} className="py-12 text-center text-slate-400">
                       No quotations match your filters.
                     </td>
                   </tr>
                 ) : (
-                  filteredQuotes.map((q) => (
+                  filteredQuotes.map((q) => {
+                    const { cost, profit, margin, hasEstimatedCost } = quotationProfit(q);
+                    return (
                     <tr key={q.id} className="hover:bg-slate-50/80 transition group">
                       <td className="py-3.5 px-4 font-mono font-bold text-indigo-600">
                         {q.quoteNumber}
@@ -244,6 +262,24 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                       <td className="py-3.5 px-4 text-slate-600 font-medium">{q.date}</td>
                       <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
                         {q.currency} {q.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-slate-600">
+                        <div>{q.currency} {cost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                        {hasEstimatedCost && <div className="text-[9px] text-amber-600 font-sans font-semibold">Includes 40% estimate</div>}
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <div className={`font-mono font-bold ${profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                          {q.currency} {profit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </div>
+                        <span className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                          margin >= 40
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : margin >= 20
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {margin.toFixed(1)}% margin
+                        </span>
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="flex flex-col gap-1 items-start">
@@ -318,7 +354,8 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                         </div>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
