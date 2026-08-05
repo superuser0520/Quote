@@ -22,7 +22,10 @@ export function createQuotationPdf(quotation: Quotation, company: CompanyProfile
 
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(9);
-  const companyLines = [company.address, company.phone, company.email].filter(Boolean);
+  const toLines = (values: Array<string | undefined>) => values
+    .filter((value): value is string => Boolean(value))
+    .flatMap((value) => value.split(/\r?\n/).filter(Boolean));
+  const companyLines = toLines([company.address, company.phone, company.email]);
   pdf.text(companyLines, left, y);
   pdf.text([`Quote: ${quotation.quoteNumber}`, `Date: ${quotation.date}`, `Valid until: ${quotation.validUntil}`], right, y, { align: 'right' });
   y += Math.max(companyLines.length, 3) * 4 + 7;
@@ -34,7 +37,13 @@ export function createQuotationPdf(quotation: Quotation, company: CompanyProfile
   pdf.text('BILL TO', left, y);
   y += 5;
   pdf.setFont('helvetica', 'normal');
-  const clientLines = [quotation.client.name, quotation.client.companyName, quotation.client.address, quotation.client.email, quotation.client.phone].filter(Boolean);
+  const clientLines = toLines([
+    quotation.client.name,
+    quotation.client.companyName,
+    quotation.client.address,
+    quotation.client.email,
+    quotation.client.phone,
+  ]);
   pdf.text(clientLines, left, y);
   y += clientLines.length * 4 + 8;
 
@@ -80,6 +89,10 @@ export function createQuotationPdf(quotation: Quotation, company: CompanyProfile
   });
 
   if (quotation.notes || quotation.terms) {
+    if (y > 242) {
+      pdf.addPage();
+      y = 18;
+    }
     y += 4;
     pdf.setFont('helvetica', 'bold');
     pdf.text('Notes and terms', left, y);
@@ -87,6 +100,14 @@ export function createQuotationPdf(quotation: Quotation, company: CompanyProfile
     pdf.setFont('helvetica', 'normal');
     pdf.text(pdf.splitTextToSize([quotation.notes, quotation.terms].filter(Boolean).join('\n\n'), 178), left, y);
   }
+
+  const notice = 'Document remark: This is a computer-generated document and is valid without a signature.';
+  pdf.setDrawColor(203, 213, 225);
+  pdf.line(left, 278, right, 278);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(8);
+  pdf.setTextColor(71, 85, 105);
+  pdf.text(notice, 105, 284, { align: 'center' });
 
   return {
     filename: `${quotation.quoteNumber.replace(/[^a-z0-9_-]/gi, '_')}.pdf`,

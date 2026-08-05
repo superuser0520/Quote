@@ -512,23 +512,10 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
               )}
             </div>
 
-            {/* Signature & Sign-off Area */}
-            <div className="mt-10 pt-6 border-t border-slate-200 flex justify-between items-end text-xs text-slate-600">
-              <div>
-                <p className="font-bold text-slate-900">Prepared By:</p>
-                <div className="h-12 border-b border-slate-300 w-52 mt-2"></div>
-                <p className="mt-1.5 font-semibold text-slate-800">{companyProfile.name}</p>
-              </div>
-              <div className="text-right">
-                <p className="font-bold text-slate-900">Authorized Confirmation & Signature:</p>
-                <div className="h-12 border-b border-slate-300 w-52 mt-2 ml-auto"></div>
-                <p className="mt-1.5 font-medium text-slate-700">
-                  {quotation.client.name} ({quotation.client.companyName || 'Client'})
-                </p>
-                {quotation.client.email && (
-                  <p className="text-[11px] text-slate-500">Email : {quotation.client.email}</p>
-                )}
-              </div>
+            {/* Computer-generated document notice */}
+            <div className="mt-8 pt-5 border-t border-slate-200 text-center text-xs text-slate-600">
+              <p className="font-semibold text-slate-800">Document remark: This is a computer-generated document and is valid without a signature.</p>
+              <p className="mt-1 text-[11px] text-slate-500">Issued electronically by {companyProfile.name}.</p>
             </div>
           </div>
         )}
@@ -651,18 +638,10 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
               </div>
             </div>
 
-            {/* Proof of Delivery / Recipient Sign-off */}
-            <div className="mt-10 pt-6 border-t border-slate-200 grid grid-cols-2 gap-8 text-xs text-slate-600">
-              <div>
-                <p className="font-bold text-slate-900">Dispatched By (Driver / Logistics):</p>
-                <div className="h-12 border-b border-slate-300 w-full mt-2"></div>
-                <p className="mt-1.5 text-slate-500">Signature & Date</p>
-              </div>
-              <div>
-                <p className="font-bold text-slate-900">Received In Good Order By (Customer):</p>
-                <div className="h-12 border-b border-slate-300 w-full mt-2"></div>
-                <p className="mt-1.5 text-slate-500">Authorized Signature & Company Stamp</p>
-              </div>
+            {/* Computer-generated document notice */}
+            <div className="mt-8 pt-5 border-t border-slate-200 text-center text-xs text-slate-600">
+              <p className="font-semibold text-slate-800">Document remark: This is a computer-generated document and is valid without a signature.</p>
+              <p className="mt-1 text-[11px] text-slate-500">Delivery status and completion details are maintained electronically.</p>
             </div>
           </div>
         )}
@@ -801,20 +780,10 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
               </div>
             </div>
 
-            {/* Signature Area */}
-            <div className="mt-10 pt-6 border-t border-slate-200 flex justify-between items-end text-xs text-slate-600">
-              <div>
-                <p className="font-bold text-slate-900">Issued By:</p>
-                <div className="h-12 border-b border-slate-300 w-52 mt-2"></div>
-                <p className="mt-1.5 font-semibold text-slate-800">{companyProfile.name}</p>
-              </div>
-              <div className="text-right">
-                <p className="font-bold text-slate-900">Customer Sign-off:</p>
-                <div className="h-12 border-b border-slate-300 w-52 mt-2 ml-auto"></div>
-                <p className="mt-1.5 font-medium text-slate-700">
-                  {quotation.client.name} ({quotation.client.companyName || 'Client'})
-                </p>
-              </div>
+            {/* Computer-generated document notice */}
+            <div className="mt-8 pt-5 border-t border-slate-200 text-center text-xs text-slate-600">
+              <p className="font-semibold text-slate-800">Document remark: This is a computer-generated document and is valid without a signature.</p>
+              <p className="mt-1 text-[11px] text-slate-500">Issued electronically by {companyProfile.name}.</p>
             </div>
           </div>
         )}
