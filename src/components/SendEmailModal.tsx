@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Quotation, DeliveryOrder, Invoice, CompanyProfile } from '../types';
 import { sendGmailDirectly } from '../lib/gmail';
-import { createQuotationPdf } from '../lib/quotationPdf';
+import { createDocumentPdf } from '../lib/quotationPdf';
 import {
   Mail,
   X,
@@ -219,9 +219,7 @@ ${companyProfile.website ? `Website: ${companyProfile.website}` : ''}`;
     try {
       setIsSending(true);
       setSendError(null);
-      const attachment = docType === 'quotation'
-        ? createQuotationPdf(quotation, companyProfile)
-        : undefined;
+      const attachment = createDocumentPdf(docType, quotation, companyProfile, deliveryOrder, invoice);
       await sendGmailDirectly(accessToken, recipient, subject, body, ccEmail || undefined, attachment);
 
       setSendSuccess(true);
@@ -255,9 +253,9 @@ ${companyProfile.website ? `Website: ${companyProfile.website}` : ''}`;
               <p className="text-xs text-slate-400">
                 Client: <span className="text-indigo-300 font-semibold">{quotation.client.name}</span> ({quotation.quoteNumber})
               </p>
-              {docType === 'quotation' && (
-                <p className="text-[11px] text-emerald-300 mt-0.5">Quotation PDF will be attached automatically</p>
-              )}
+              <p className="text-[11px] text-emerald-300 mt-0.5">
+                {docType === 'quotation' ? 'Quotation' : docType === 'do' ? 'Delivery Order' : 'Invoice'} PDF will be attached automatically
+              </p>
             </div>
           </div>
           <button
@@ -277,7 +275,8 @@ ${companyProfile.website ? `Website: ${companyProfile.website}` : ''}`;
               <div>
                 <p className="text-sm font-extrabold text-emerald-950">Email Sent Successfully via Gmail API! 🎉</p>
                 <p className="font-normal text-emerald-800 mt-0.5">
-                  The document email has been dispatched directly to <strong>{recipient}</strong>. Document status updated to "Sent (Pending PO)".
+                  The email was sent directly to <strong>{recipient}</strong> with the clean{' '}
+                  {docType === 'quotation' ? 'quotation' : docType === 'do' ? 'delivery order' : 'invoice'} PDF attached.
                 </p>
               </div>
             </div>

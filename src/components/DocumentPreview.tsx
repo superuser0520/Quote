@@ -2,8 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { Quotation, DeliveryOrder, Invoice, CompanyProfile, QuotationStatus } from '../types';
 import { numberToWords } from '../lib/numberToWords';
 import { SendEmailModal } from './SendEmailModal';
+import { createDocumentPdf } from '../lib/quotationPdf';
 import {
-  Printer,
+  Download,
   Mail,
   Truck,
   Receipt,
@@ -89,8 +90,21 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     setPoInput('');
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handleDownloadPdf = () => {
+    try {
+      const attachment = createDocumentPdf(activeTab, quotation, companyProfile, deliveryOrder, invoice);
+      const blob = new Blob([attachment.data], { type: attachment.mimeType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = attachment.filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Unable to generate this PDF.');
+    }
   };
 
   return (
@@ -259,13 +273,14 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             <span>Send Email to Client</span>
           </button>
 
-          {/* Print / Export PDF */}
+          {/* Clean PDF download */}
           <button
-            onClick={handlePrint}
+            onClick={handleDownloadPdf}
             className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition active:scale-95"
+            title={`Download clean ${activeTab === 'do' ? 'Delivery Order' : activeTab === 'invoice' ? 'Invoice' : 'Quotation'} PDF`}
           >
-            <Printer className="w-4 h-4" />
-            <span>Print / PDF</span>
+            <Download className="w-4 h-4" />
+            <span>Download PDF</span>
           </button>
 
           {/* Edit Quote */}
