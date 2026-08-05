@@ -9,17 +9,27 @@ const STORAGE_KEYS = {
 };
 
 export const defaultCompanyProfile: CompanyProfile = {
-  name: 'Shimano Singapore',
-  logoUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
-  address: 'Tan Jun Yi\n11 Bulim Drive, Singapore 648105',
-  email: 'tanjunyi@shimano.example.com',
-  phone: '+65 6265 8111',
-  taxId: '201938102-M',
-  bankName: 'DBS Bank Ltd',
-  bankAccountNo: '072-91028-4',
-  bankAccountName: 'Shimano Singapore Pte Ltd',
+  name: 'Huat Construction Metal Works',
+  logoUrl: '',
+  address: 'No 5 Jalan Pulai 25\nTaman Pulai Utama\n81300 Skudai, Johor',
+  email: 'huatconstructionmetal@gmail.com',
+  phone: '',
+  taxId: 'JM0662094-A',
+  bankName: '',
+  bankAccountNo: '',
+  bankAccountName: '',
   defaultTerms: '1. This quotation is valid for 60 days.\n2. Payment Terms: NET 30 days after item receival\n3. Leadtime: 1 week upon date of PO receival',
   defaultNotes: 'Thank you for your business!',
+};
+
+// A previous demo release accidentally stored the sample buyer as the issuer.
+// Only migrate that exact demo identity; genuine user-entered profiles are kept.
+export const normalizeCompanyProfile = (profile: CompanyProfile): CompanyProfile => {
+  const isMistakenBuyerProfile =
+    profile.name === 'Shimano Singapore' &&
+    profile.email === 'tanjunyi@shimano.example.com';
+
+  return isMistakenBuyerProfile ? { ...defaultCompanyProfile } : profile;
 };
 
 export const sampleQuotations: Quotation[] = [
@@ -340,7 +350,9 @@ export const loadCompanyProfile = (): CompanyProfile => {
     return defaultCompanyProfile;
   }
   try {
-    return JSON.parse(data);
+    const profile = normalizeCompanyProfile(JSON.parse(data));
+    saveCompanyProfile(profile);
+    return profile;
   } catch {
     return defaultCompanyProfile;
   }

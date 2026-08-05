@@ -8,6 +8,7 @@ import {
   saveInvoices,
   loadCompanyProfile,
   saveCompanyProfile,
+  normalizeCompanyProfile,
 } from './storage';
 
 export interface DatabaseState {
@@ -35,7 +36,7 @@ export async function fetchServerDatabase(): Promise<DatabaseState | null> {
           quotations: data.quotations || loadQuotations(),
           deliveryOrders: data.deliveryOrders || loadDeliveryOrders(),
           invoices: data.invoices || loadInvoices(),
-          companyProfile: data.companyProfile || loadCompanyProfile(),
+          companyProfile: normalizeCompanyProfile(data.companyProfile || loadCompanyProfile()),
         };
       }
     }

@@ -96,6 +96,8 @@ export default function App() {
         setDeliveryOrders(db.deliveryOrders);
         setInvoices(db.invoices);
         setCompanyProfile(db.companyProfile);
+        // Persist any one-time company-profile migration back to the Pi DB.
+        saveServerDatabase(db);
         showToast('Connected & synced with Raspberry Pi Database!', 'info');
       }
     });
