@@ -515,7 +515,8 @@ export default function App() {
   const handleSaveCompanyProfile = (prof: CompanyProfile) => {
     setCompanyProfile(prof);
     saveCompanyProfile(prof);
-    showToast('Company profile details saved!');
+    syncAndSaveData(quotations, deliveryOrders, invoices, prof);
+    showToast('Company profile saved to the Raspberry Pi database!');
   };
 
   // Filter pending PO count

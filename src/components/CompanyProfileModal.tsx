@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CompanyProfile } from '../types';
 import { Building2, X, Save, Image, CreditCard, FileText } from 'lucide-react';
 
@@ -16,6 +16,10 @@ export const CompanyProfileModal: React.FC<CompanyProfileModalProps> = ({
   onSave,
 }) => {
   const [profile, setProfile] = useState<CompanyProfile>({ ...companyProfile });
+
+  useEffect(() => {
+    if (isOpen) setProfile({ ...companyProfile });
+  }, [isOpen, companyProfile]);
 
   if (!isOpen) return null;
 
