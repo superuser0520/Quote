@@ -134,9 +134,9 @@ PAYMENT DETAILS:
 Bank Name: ${companyProfile.bankName || 'N/A'}
 Account Name: ${companyProfile.bankAccountName || compName}
 Account No: ${companyProfile.bankAccountNo || 'N/A'}
-Payment Terms: ${invoice.paymentTerms || 'NET 30 Days'}
+Payment Terms: 30 days
 
-${customNote ? `NOTE:\n${customNote}\n\n` : ''}Kindly arrange payment within 1 month. Reply to this email with payment proof once processed.
+${customNote ? `NOTE:\n${customNote}\n\n` : ''}Kindly arrange payment within 30 days. Reply to this email with payment proof once processed.
 
 Best regards,
 

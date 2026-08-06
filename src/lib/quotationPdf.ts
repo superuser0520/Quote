@@ -191,7 +191,7 @@ export function createDocumentPdf(
     y += 5;
     pdf.setFont('helvetica', 'normal');
     const paymentLines = lines([
-      invoice!.paymentTerms ? `Payment terms: ${invoice!.paymentTerms}` : undefined,
+      'Payment term: 30 days',
       company.bankName ? `Bank: ${company.bankName}` : undefined,
       company.bankAccountName ? `Account name: ${company.bankAccountName}` : undefined,
       company.bankAccountNo ? `Account number: ${company.bankAccountNo}` : undefined,
@@ -202,6 +202,8 @@ export function createDocumentPdf(
 
   const notes = type === 'do'
     ? 'Goods are supplied according to the referenced purchase order.'
+    : type === 'invoice'
+    ? ''
     : [quotation.notes, quotation.terms].filter(Boolean).join('\n\n');
   if (notes) {
     ensureSpace(20);

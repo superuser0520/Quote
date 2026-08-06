@@ -18,6 +18,7 @@ import {
   saveCompanyProfile,
 } from './lib/storage';
 import { fetchServerDatabase, saveServerDatabase } from './lib/dbClient';
+import { outstandingInvoicesForCustomer } from './lib/statementOfAccountPdf';
 import { initAuth, googleSignIn, logout, getAccessToken } from './lib/firebase';
 
 import { Header } from './components/Header';
@@ -29,6 +30,7 @@ import { POEmailCheckerModal } from './components/POEmailCheckerModal';
 import { CompanyProfileModal } from './components/CompanyProfileModal';
 import { RaspberryPiGuideModal } from './components/RaspberryPiGuideModal';
 import { ManualRecordModal } from './components/ManualRecordModal';
+import { StatementOfAccountEmailModal } from './components/StatementOfAccountEmailModal';
 
 import { CheckCircle2, AlertCircle, Mail, FileText, TrendingUp, Server, Database } from 'lucide-react';
 
@@ -53,6 +55,7 @@ export default function App() {
   const [isCompanyProfileOpen, setIsCompanyProfileOpen] = useState(false);
   const [isPiGuideOpen, setIsPiGuideOpen] = useState(false);
   const [isManualRecordOpen, setIsManualRecordOpen] = useState(false);
+  const [soaInvoice, setSoaInvoice] = useState<Invoice | null>(null);
 
   // Notification Toast
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' } | null>(null);
@@ -208,6 +211,15 @@ export default function App() {
     showToast(`Manual Invoice ${newInv.invoiceNumber} registered!`);
   };
 
+  const handleGenerateStatementOfAccount = (selectedInvoice: Invoice) => {
+    const outstanding = outstandingInvoicesForCustomer(selectedInvoice, invoices);
+    if (outstanding.length === 0) {
+      window.alert('This customer has no outstanding invoices.');
+      return;
+    }
+    setSoaInvoice(selectedInvoice);
+  };
+
   const handleDeleteQuotation = (quote: Quotation) => {
     const linkedDOs = deliveryOrders.filter((item) => item.quotationId === quote.id);
     const linkedInvoices = invoices.filter((item) => item.quotationId === quote.id);
@@ -338,7 +350,7 @@ export default function App() {
         discountTotal: q.discountTotal,
         grandTotal: q.grandTotal,
         currency: q.currency,
-        paymentTerms: q.terms || companyProfile.defaultTerms,
+        paymentTerms: '30 days',
         bankDetails: `${companyProfile.bankName} | Acc: ${companyProfile.bankAccountNo}`,
         status: 'Unpaid',
         createdAt: new Date().toISOString(),
@@ -418,7 +430,7 @@ export default function App() {
         discountTotal: q.discountTotal,
         grandTotal: q.grandTotal,
         currency: q.currency,
-        paymentTerms: q.terms || companyProfile.defaultTerms,
+        paymentTerms: '30 days',
         bankDetails: `${companyProfile.bankName} | Acc: ${companyProfile.bankAccountNo}`,
         status: 'Unpaid',
         createdAt: new Date().toISOString(),
@@ -642,6 +654,7 @@ export default function App() {
             onDeleteQuotation={handleDeleteQuotation}
             onDeleteDeliveryOrder={handleDeleteDeliveryOrder}
             onDeleteInvoice={handleDeleteInvoice}
+            onGenerateStatementOfAccount={handleGenerateStatementOfAccount}
             onMarkDeliveryOrderDelivered={handleMarkDeliveryOrderDelivered}
           />
         )}
@@ -762,6 +775,22 @@ export default function App() {
         onAddDeliveryOrder={handleAddManualDO}
         onAddInvoice={handleAddManualInvoice}
       />
+
+      {soaInvoice && (
+        <StatementOfAccountEmailModal
+          isOpen={Boolean(soaInvoice)}
+          onClose={() => setSoaInvoice(null)}
+          selectedInvoice={soaInvoice}
+          outstandingInvoices={outstandingInvoicesForCustomer(soaInvoice, invoices)}
+          companyProfile={companyProfile}
+          picOptions={savedClients.filter((client) =>
+            (client.companyName || client.email || client.name).trim().toLowerCase() ===
+            (soaInvoice.client.companyName || soaInvoice.client.email || soaInvoice.client.name).trim().toLowerCase()
+          )}
+          accessToken={accessToken}
+          onLoginRequest={handleLogin}
+        />
+      )}
     </div>
   );
 }

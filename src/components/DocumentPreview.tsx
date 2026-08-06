@@ -701,6 +701,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
               </div>
               <div className="space-y-1 text-slate-600 md:text-right">
                 <p className="text-slate-400 font-bold uppercase tracking-wider mb-1">Bank Payment Details:</p>
+                <p className="font-semibold text-slate-800">Payment Term: 30 days</p>
                 <p className="font-semibold text-slate-800">Bank: {companyProfile.bankName}</p>
                 <p className="font-mono font-bold text-slate-900">Account No: {companyProfile.bankAccountNo}</p>
                 <p>Account Name: {companyProfile.bankAccountName}</p>
@@ -771,16 +772,6 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                     {quotation.currency} {quotation.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
                 </div>
-              </div>
-            </div>
-
-            {/* Terms & Notes */}
-            <div className="border-t border-slate-200 pt-6 text-xs text-slate-700 space-y-4">
-              <div>
-                <p className="font-bold text-slate-900 mb-1.5 uppercase tracking-wider">Terms & Conditions:</p>
-                <p className="whitespace-pre-line leading-relaxed text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                  {quotation.terms || '1. This quotation is valid for 60 days.\n2. Payment Terms: NET 30 days after item receival\n3. Leadtime: 1 week upon date of PO receival'}
-                </p>
               </div>
             </div>
 

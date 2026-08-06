@@ -32,6 +32,7 @@ interface DocumentListProps {
   onDeleteQuotation: (q: Quotation) => void;
   onDeleteDeliveryOrder: (deliveryOrder: DeliveryOrder) => void;
   onDeleteInvoice: (invoice: Invoice) => void;
+  onGenerateStatementOfAccount: (invoice: Invoice) => void;
   onMarkDeliveryOrderDelivered: (deliveryOrder: DeliveryOrder) => void;
 }
 
@@ -48,6 +49,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
   onDeleteQuotation,
   onDeleteDeliveryOrder,
   onDeleteInvoice,
+  onGenerateStatementOfAccount,
   onMarkDeliveryOrderDelivered,
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'quotes' | 'dos' | 'invoices'>('all');
@@ -450,6 +452,13 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <div className="inline-flex items-center gap-2">
+                        <button
+                          onClick={() => onGenerateStatementOfAccount(inv)}
+                          className="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg font-bold text-xs hover:bg-amber-100 transition"
+                          title="Prepare and send all outstanding invoices for this company"
+                        >
+                          Generate SOA
+                        </button>
                       {quotations.find((q) => q.id === inv.quotationId) && (
                         <button
                           onClick={() => onSelectQuotation(quotations.find((q) => q.id === inv.quotationId)!)}
