@@ -11,6 +11,17 @@ const customerKey = (client: ClientDetails) =>
 
 const safeFilename = (value: string) => value.replace(/[^a-z0-9_-]/gi, '_');
 
+export const invoiceDueStatus = (invoice: Invoice) => {
+  if (invoice.status === 'Paid') return 'Paid';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(`${invoice.dueDate}T00:00:00`);
+  const days = Math.ceil((due.getTime() - today.getTime()) / 86400000);
+  if (days < 0) return `Overdue ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'}`;
+  if (days === 0) return 'Due today';
+  return `Due in ${days} day${days === 1 ? '' : 's'}`;
+};
+
 export const outstandingInvoicesForCustomer = (selected: Invoice, invoices: Invoice[]) => {
   const key = customerKey(selected.client);
   return invoices
@@ -57,10 +68,10 @@ export function createStatementOfAccountPdf(
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(8);
     pdf.text('Invoice', 18, y + 6);
-    pdf.text('Invoice date', 50, y + 6);
-    pdf.text('Due date', 76, y + 6);
-    pdf.text('PO reference', 100, y + 6);
-    pdf.text('Status', 133, y + 6);
+    pdf.text('PIC', 45, y + 6);
+    pdf.text('Due date', 96, y + 6);
+    pdf.text('Due status', 121, y + 6);
+    pdf.text('PO reference', 153, y + 6);
     pdf.text('Outstanding', 192, y + 6, { align: 'right' });
     y += 9;
   };
@@ -87,20 +98,25 @@ export function createStatementOfAccountPdf(
   pdf.setTextColor(30, 41, 59);
   pdf.setFont('helvetica', 'normal');
   invoices.forEach((invoice, index) => {
-    if (y + 9 > PAGE_BOTTOM) newPage();
+    const picLines = pdf.splitTextToSize(
+      [invoice.client.name, invoice.client.email].filter(Boolean).join(' / '),
+      46,
+    ) as string[];
+    const rowHeight = Math.max(9, picLines.length * 4 + 3);
+    if (y + rowHeight > PAGE_BOTTOM) newPage();
     if (index % 2 === 0) {
       pdf.setFillColor(248, 250, 252);
-      pdf.rect(LEFT, y, RIGHT - LEFT, 9, 'F');
+      pdf.rect(LEFT, y, RIGHT - LEFT, rowHeight, 'F');
     }
     pdf.setTextColor(30, 41, 59);
     pdf.setFontSize(8);
     pdf.text(invoice.invoiceNumber, 18, y + 6);
-    pdf.text(invoice.date, 50, y + 6);
-    pdf.text(invoice.dueDate, 76, y + 6);
-    pdf.text(invoice.poNumber || '-', 100, y + 6);
-    pdf.text(invoice.status, 133, y + 6);
+    pdf.text(picLines, 45, y + 5);
+    pdf.text(invoice.dueDate, 96, y + 6);
+    pdf.text(invoiceDueStatus(invoice), 121, y + 6);
+    pdf.text(invoice.poNumber || '-', 153, y + 6);
     pdf.text(`${invoice.currency} ${invoice.grandTotal.toFixed(2)}`, 192, y + 6, { align: 'right' });
-    y += 9;
+    y += rowHeight;
   });
 
   const totals = invoices.reduce((map, invoice) => {

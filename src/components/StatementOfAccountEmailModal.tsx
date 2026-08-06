@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle, Download, Loader2, Mail, Send, X } from 'lucide-react';
 import { ClientDetails, CompanyProfile, Invoice } from '../types';
 import { sendGmailDirectly } from '../lib/gmail';
-import { createStatementOfAccountPdf } from '../lib/statementOfAccountPdf';
+import { createStatementOfAccountPdf, invoiceDueStatus } from '../lib/statementOfAccountPdf';
 
 interface StatementOfAccountEmailModalProps {
   isOpen: boolean;
@@ -43,6 +43,9 @@ export const StatementOfAccountEmailModal: React.FC<StatementOfAccountEmailModal
     const totalText = Array.from(totals.entries())
       .map(([currency, total]) => `${currency} ${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
       .join(' / ');
+    const invoiceSummary = outstandingInvoices
+      .map((invoice) => `- ${invoice.invoiceNumber}: ${invoiceDueStatus(invoice)} | PIC: ${invoice.client.name || '-'} (${invoice.client.email || '-'}) | ${invoice.currency} ${invoice.grandTotal.toFixed(2)}`)
+      .join('\n');
     setRecipient(selectedInvoice.client.email || '');
     setCcEmail(companyProfile.email || '');
     setSubject(`Statement of Account - ${customer} - Outstanding Payment`);
@@ -51,6 +54,9 @@ export const StatementOfAccountEmailModal: React.FC<StatementOfAccountEmailModal
 Please find attached the latest Statement of Account for ${customer}.
 
 Our records show ${outstandingInvoices.length} outstanding invoice${outstandingInvoices.length === 1 ? '' : 's'} with a total balance of ${totalText}.
+
+OUTSTANDING INVOICES
+${invoiceSummary}
 
 Kindly arrange payment for the outstanding balance at your earliest convenience. Please quote the relevant invoice number in the payment reference and share the payment advice once completed.
 

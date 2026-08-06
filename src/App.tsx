@@ -733,7 +733,7 @@ export default function App() {
             CLIENT MAIL DISPATCH: READY
           </span>
           <span className="text-slate-500 font-mono">
-            QuoteXpress Pro v2.5
+            SooQuoting v2.5
           </span>
         </div>
       </footer>

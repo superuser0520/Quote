@@ -89,7 +89,7 @@ export const RaspberryPiGuideModal: React.FC<RaspberryPiGuideModalProps> = ({
             });
             alert('Database imported successfully onto this instance!');
           } else {
-            alert('Invalid database format. Please select a valid QuoteXpress JSON backup.');
+            alert('Invalid database format. Please select a valid SooQuoting JSON backup.');
           }
         } catch (err) {
           alert('Error reading JSON database file.');
@@ -140,7 +140,7 @@ services:
                 <span>Raspberry Pi & Custom Domain Self-Hosting</span>
               </h2>
               <p className="text-xs text-slate-300">
-                Run QuoteXpress Pro 100% locally on your Raspberry Pi or home server with custom domain HTTPS.
+                Run SooQuoting 100% locally on your Raspberry Pi or home server with custom domain HTTPS.
               </p>
             </div>
           </div>
@@ -314,7 +314,7 @@ services:
                   </span>
                 </div>
                 <p className="text-slate-300 leading-relaxed">
-                  QuoteXpress Pro stores structured records locally in standard JSON storage and synchronized Firebase/Firestore collections when connected. You can seamlessly export or transfer your database between your PC and Raspberry Pi!
+                  SooQuoting stores structured records locally in standard JSON storage. You can seamlessly export or transfer your database between your PC and Raspberry Pi!
                 </p>
 
                 {/* Instant Database Export/Import Tools */}

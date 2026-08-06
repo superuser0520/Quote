@@ -55,6 +55,18 @@ export const DocumentList: React.FC<DocumentListProps> = ({
   const [activeTab, setActiveTab] = useState<'all' | 'quotes' | 'dos' | 'invoices'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [soaCustomerKey, setSoaCustomerKey] = useState('');
+
+  const outstandingInvoiceGroups = Array.from(
+    invoices
+      .filter((invoice) => invoice.status !== 'Paid')
+      .reduce((groups, invoice) => {
+        const key = (invoice.client.companyName || invoice.client.email || invoice.client.name).trim().toLowerCase();
+        if (!groups.has(key)) groups.set(key, invoice);
+        return groups;
+      }, new Map<string, Invoice>())
+      .entries(),
+  ).sort((a, b) => (a[1].client.companyName || a[1].client.name).localeCompare(b[1].client.companyName || b[1].client.name));
 
   // Dashboard Stats
   const pendingQuotes = quotations.filter((q) => q.status === 'Sent (Pending PO)');
@@ -190,6 +202,30 @@ export const DocumentList: React.FC<DocumentListProps> = ({
 
           {/* Search & Status Filters & Manual Add */}
           <div className="flex flex-wrap items-center gap-2">
+            {activeTab === 'invoices' && (
+              <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-1">
+                <select
+                  value={soaCustomerKey}
+                  onChange={(event) => setSoaCustomerKey(event.target.value)}
+                  className="min-w-[220px] px-2 py-1 bg-white border border-amber-200 rounded-md text-xs font-semibold text-slate-800"
+                >
+                  <option value="">Select company for SOA...</option>
+                  {outstandingInvoiceGroups.map(([key, invoice]) => (
+                    <option key={key} value={key}>{invoice.client.companyName || invoice.client.name}</option>
+                  ))}
+                </select>
+                <button
+                  disabled={!soaCustomerKey}
+                  onClick={() => {
+                    const selected = outstandingInvoiceGroups.find(([key]) => key === soaCustomerKey)?.[1];
+                    if (selected) onGenerateStatementOfAccount(selected);
+                  }}
+                  className="px-3 py-1 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white rounded-md text-xs font-bold transition"
+                >
+                  Generate SOA
+                </button>
+              </div>
+            )}
             <div className="relative flex-1 min-w-[180px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
               <input
@@ -452,13 +488,6 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <div className="inline-flex items-center gap-2">
-                        <button
-                          onClick={() => onGenerateStatementOfAccount(inv)}
-                          className="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg font-bold text-xs hover:bg-amber-100 transition"
-                          title="Prepare and send all outstanding invoices for this company"
-                        >
-                          Generate SOA
-                        </button>
                       {quotations.find((q) => q.id === inv.quotationId) && (
                         <button
                           onClick={() => onSelectQuotation(quotations.find((q) => q.id === inv.quotationId)!)}

@@ -56,7 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-lg text-slate-900 tracking-tight">
-                  QuoteXpress <span className="text-indigo-600">Pro</span>
+                  SooQuoting
                 </h1>
               </div>
             </div>

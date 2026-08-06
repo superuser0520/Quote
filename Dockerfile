@@ -1,4 +1,4 @@
-# Dockerfile for running QuoteXpress Pro on Raspberry Pi (ARM64 / v7) or x86_64
+# Dockerfile for running SooQuoting on Raspberry Pi (ARM64 / v7) or x86_64
 FROM node:20-alpine AS builder
 
 WORKDIR /app

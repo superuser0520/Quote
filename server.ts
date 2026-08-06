@@ -85,7 +85,7 @@ async function start() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 QuoteXpress Pro running on http://0.0.0.0:${PORT}`);
+    console.log(`🚀 SooQuoting running on http://0.0.0.0:${PORT}`);
     console.log(`📁 Persistent Raspberry Pi Database: ${DB_FILE}`);
   });
 }
