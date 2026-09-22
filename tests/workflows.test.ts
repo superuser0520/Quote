@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { effectiveQuotation, issueDocumentPair, markInvoicePaid, reviseQuotation, quotationVersions, isLatestQuotation } from '../src/lib/workflows';
+import { effectiveQuotation, issueDocumentPair, markInvoicePaid, markInvoiceUnpaid, reviseQuotation, quotationVersions, isLatestQuotation } from '../src/lib/workflows';
 import { documentQuotation } from '../src/lib/documentData';
 import { createDocumentPdf } from '../src/lib/quotationPdf';
 import { sendGmailDirectly } from '../src/lib/gmail';
@@ -20,6 +20,18 @@ test('deleting revisions keeps other versions and promotes the previous latest',
   assert.equal(isLatestQuotation(deletedLatest.quotations, first.quotation), true);
   assert.ok(deletedLatest.quotations.some(q => q.id === 'q-a'));
   assert.ok(deletedLatest.quotations.some(q => q.id === 'q-b'));
+});
+
+test('marking a paid invoice unpaid clears payment and reopens the quotation invoice status', () => {
+  const state = fixture();
+  const issued = issueDocumentPair(state, 'q-a', now).state;
+  const paid = markInvoicePaid(issued, issued.invoices[0].id, now);
+  assert.equal(paid.invoices[0].status, 'Paid');
+  assert.equal(paid.quotations.find(q => q.id === 'q-a')?.status, 'Paid');
+  const unpaid = markInvoiceUnpaid(paid, paid.invoices[0].id, now);
+  assert.equal(unpaid.invoices[0].status, 'Unpaid');
+  assert.equal(unpaid.invoices[0].paidAt, undefined);
+  assert.equal(unpaid.quotations.find(q => q.id === 'q-a')?.status, 'Invoice Issued');
 });
 function fixture(): DatabaseState {
   const quote: Quotation = {

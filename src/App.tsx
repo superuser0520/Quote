@@ -14,7 +14,7 @@ import {
   loadCompanyProfile,
 } from './lib/storage';
 import { fetchServerDatabase, saveServerDatabase, cacheDatabase, pendingDatabase, DatabaseState } from './lib/dbClient';
-import { effectiveQuotation, localDate, issueDocumentPair, markInvoicePaid, reviseQuotation, quotationVersions, isLatestQuotation } from './lib/workflows';
+import { effectiveQuotation, localDate, issueDocumentPair, markInvoicePaid, markInvoiceUnpaid, reviseQuotation, quotationVersions, isLatestQuotation } from './lib/workflows';
 import { SendEmailModal } from './components/SendEmailModal';
 import { outstandingInvoicesForCustomer } from './lib/statementOfAccountPdf';
 import { initAuth, googleSignIn, logout } from './lib/firebase';
@@ -364,6 +364,14 @@ export default function App() {
       review: [...final.review, ...final.plans.filter(p => !savedFiles.has(p.email.id)).map(p => ({email: p.email, reason: 'Quotation changed during refresh. Refresh again.'}))] };
   };
 
+  const handleMarkAsUnpaid = (invoiceId: string) => {
+    try {
+      const updated = markInvoiceUnpaid(currentDatabase.current, invoiceId);
+      syncAndSaveData(updated.quotations, updated.deliveryOrders, updated.invoices);
+      showToast('Invoice marked unpaid.');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to change invoice status.', 'info'); }
+  };
+
   const handleConfirmPOFromEmail = async (
     quote: Quotation,
     poNumber: string,
@@ -498,6 +506,7 @@ export default function App() {
             onOpenManualRecord={() => setIsManualRecordOpen(true)}
             onGenerateDOAndInvoice={handleGenerateDOAndInvoice}
             onMarkInvoicePaid={handleMarkAsPaid}
+            onMarkInvoiceUnpaid={handleMarkAsUnpaid}
             onReviseQuotation={handleReviseQuotation}
             onEditQuotation={(q) => { setSelectedQuote(q); setView('edit'); }}
             onSelectInvoice={(inv) => {
@@ -567,6 +576,7 @@ export default function App() {
             onSelectVersion={(q) => {setSelectedQuote(q); setSelectedDocument({type: 'quotation'});}}
             onGenerateDOAndInvoice={handleGenerateDOAndInvoice}
             onMarkAsPaid={handleMarkAsPaid}
+            onMarkAsUnpaid={handleMarkAsUnpaid}
             onUpdateStatus={handleUpdateQuotationStatus}
             onEditQuotation={(q) => { setSelectedQuote(q); setView('edit'); }}
             onReviseQuotation={handleReviseQuotation}

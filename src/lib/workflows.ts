@@ -48,6 +48,17 @@ export function markInvoicePaid(state: DatabaseState, invoiceId: string, now = n
       ? { ...quote, status: 'Paid', updatedAt: timestamp } : quote) };
 }
 
+export function markInvoiceUnpaid(state: DatabaseState, invoiceId: string, now = new Date()): DatabaseState {
+  const target = uniqueRecord(state.invoices, invoiceId, 'Invoice');
+  if (target.status !== 'Paid') return state;
+  const timestamp = now.toISOString();
+  const invoices = state.invoices.map(invoice => invoice.id === target.id
+    ? { ...invoice, status: 'Unpaid' as const, paidAt: undefined, updatedAt: timestamp } : invoice);
+  return { ...state, invoices, quotations: state.quotations.map(quote =>
+    quote.id === target.quotationId && quote.status === 'Paid'
+      ? { ...quote, status: 'Invoice Issued', updatedAt: timestamp } : quote) };
+}
+
 function nextNumber(prefix: string, existing: string[], now: Date) {
   const base = `${prefix}-${now.getFullYear()}-`;
   const highest = existing.filter(value => value.startsWith(base))

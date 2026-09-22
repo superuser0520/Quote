@@ -33,6 +33,7 @@ interface DocumentListProps {
   onSelectInvoice: (invoice: Invoice) => void;
   onSelectDeliveryOrder: (doc: DeliveryOrder) => void;
   onMarkInvoicePaid: (invoiceId: string) => void;
+  onMarkInvoiceUnpaid: (invoiceId: string) => void;
   onCheckPOInEmail: (q?: Quotation) => void;
   onDeleteQuotation: (q: Quotation) => void;
   onDeleteDeliveryOrder: (deliveryOrder: DeliveryOrder) => void;
@@ -54,6 +55,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
   onSelectInvoice,
   onSelectDeliveryOrder,
   onMarkInvoicePaid,
+  onMarkInvoiceUnpaid,
   onCheckPOInEmail,
   onDeleteQuotation,
   onDeleteDeliveryOrder,
@@ -505,29 +507,14 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      <div className="inline-flex items-center gap-2">
-                      {inv.status !== 'Paid' && (
-                        <button onClick={() => onMarkInvoicePaid(inv.id)}
-                          aria-label={`Mark ${inv.invoiceNumber} as paid`}
-                          className="px-3 py-1 bg-emerald-600 text-white rounded-lg font-bold text-xs">Mark paid</button>
-                      )}
-                      {quotations.find((q) => q.id === inv.quotationId) && (
-                        <button
-                          onClick={() => onSelectInvoice(inv)}
-                          className="px-3 py-1 bg-indigo-600 text-white rounded-lg font-bold text-xs hover:bg-indigo-700 transition"
-                        >
-                          View Invoice
-                        </button>
-                      )}
-                        <button
-                          onClick={() => onDeleteInvoice(inv)}
-                          className="p-1.5 text-red-600 hover:text-white hover:bg-red-600 border border-red-200 rounded-lg transition"
-                          title="Delete invoice"
-                          aria-label={`Delete invoice ${inv.invoiceNumber}`}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      <details className="relative inline-block text-left">
+                        <summary className="list-none cursor-pointer h-9 px-3 inline-flex items-center rounded-lg border border-indigo-200 text-indigo-700 font-bold text-xs hover:bg-indigo-50">Actions <ChevronRight className="w-3.5 h-3.5 ml-1 rotate-90" /></summary>
+                        <div className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
+                          {inv.status !== 'Paid' ? <button onClick={() => onMarkInvoicePaid(inv.id)} className="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-emerald-700 hover:bg-emerald-50">Mark paid</button> : <button onClick={() => onMarkInvoiceUnpaid(inv.id)} className="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-amber-700 hover:bg-amber-50">Mark unpaid</button>}
+                          {quotations.find((q) => q.id === inv.quotationId) && <button onClick={() => onSelectInvoice(inv)} className="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-indigo-700 hover:bg-indigo-50">View invoice</button>}
+                          <button onClick={() => onDeleteInvoice(inv)} className="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-red-700 hover:bg-red-50">Delete invoice</button>
+                        </div>
+                      </details>
                     </td>
                   </tr>
                 ))}

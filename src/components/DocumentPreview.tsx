@@ -39,6 +39,7 @@ interface DocumentPreviewProps {
   onSelectVersion: (quotation: Quotation) => void;
   onGenerateDOAndInvoice: (quotation: Quotation) => void;
   onMarkAsPaid: (invoiceId: string) => void;
+  onMarkAsUnpaid: (invoiceId: string) => void;
   onUpdateStatus: (quotation: Quotation, status: QuotationStatus, poNumber?: string) => void;
   onEditQuotation: (quotation: Quotation) => void;
   onReviseQuotation: (quotation: Quotation) => void;
@@ -60,6 +61,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   onSelectVersion,
   onGenerateDOAndInvoice,
   onMarkAsPaid,
+  onMarkAsUnpaid,
   onUpdateStatus,
   onEditQuotation,
   onReviseQuotation,
@@ -285,6 +287,11 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
               title="Edit this quotation without creating a revision"
             >
               <Edit className="w-4 h-4" /> Edit quotation
+            </button>
+          )}
+          {invoice?.status === 'Paid' && (
+            <button onClick={() => onMarkAsUnpaid(invoice.id)} className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-lg transition" title="Mark Invoice as Unpaid">
+              <span>↶ Mark as Unpaid</span>
             </button>
           )}
           {activeTab === 'quotation' && <>
