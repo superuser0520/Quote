@@ -29,6 +29,7 @@ interface DocumentListProps {
   onOpenManualRecord: () => void;
   onGenerateDOAndInvoice: (q: Quotation) => void;
   onReviseQuotation: (q: Quotation) => void;
+  onEditQuotation: (q: Quotation) => void;
   onSelectInvoice: (invoice: Invoice) => void;
   onSelectDeliveryOrder: (doc: DeliveryOrder) => void;
   onMarkInvoicePaid: (invoiceId: string) => void;
@@ -49,6 +50,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
   onOpenManualRecord,
   onGenerateDOAndInvoice,
   onReviseQuotation,
+  onEditQuotation,
   onSelectInvoice,
   onSelectDeliveryOrder,
   onMarkInvoicePaid,
@@ -375,31 +377,33 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                       <td className="py-3.5 px-4 text-center">
                         {isLatestQuotation(quotations, q) && !['Expired', 'Cancelled'].includes(q.status) && (
                           <button onClick={() => onGenerateDOAndInvoice(q)}
-                            className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold">
-                            {q.invoiceId && q.deliveryOrderId ? 'Email DO + Invoice' : 'Issue & email DO + Invoice'}
+                            className="h-9 w-48 whitespace-nowrap px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold">
+                            {invoices.some(i => i.quotationId === q.id) && deliveryOrders.some(d => d.quotationId === q.id) ? 'Email DO + Invoice' : 'Issue & email DO + Invoice'}
                           </button>
                         )}
                       </td>
                       {/* Actions */}
                       <td className="py-3.5 px-4 text-right">
-                        <div className="inline-flex items-center gap-2">
+                        <div className="inline-flex items-center gap-2 whitespace-nowrap">
                           <button
                             onClick={() => onSelectQuotation(q)}
-                            className="px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-bold text-xs transition inline-flex items-center gap-1.5 shadow-xs"
+                            className="h-9 px-3 border border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-lg font-bold text-xs transition inline-flex items-center gap-1.5"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             View / Print
                           </button>
+                          <button onClick={() => onEditQuotation(q)} title="Edit this quotation without creating a revision"
+                            className="h-9 px-3 border border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-lg font-bold text-xs">Edit</button>
                           <button
                             onClick={() => onReviseQuotation(q)}
-                            className="px-3 py-1.5 border border-indigo-200 text-indigo-700 rounded-lg font-bold text-xs">
+                            className="h-9 px-3 border border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-lg font-bold text-xs">
                             Revise
                           </button>
                           <button
                             onClick={() => onDeleteQuotation(q)}
-                            className="p-1.5 text-red-600 hover:text-white hover:bg-red-600 border border-red-200 rounded-lg transition"
-                            title="Delete quotation and its linked records"
-                            aria-label={`Delete quotation ${q.quoteNumber}`}
+                            className="h-9 w-9 inline-flex items-center justify-center text-red-600 hover:text-white hover:bg-red-600 border border-red-200 rounded-lg transition"
+                            title={q.revisionNumber ? 'Delete this revision' : 'Delete this quotation'}
+                            aria-label={`Delete ${q.revisionNumber ? 'revision' : 'quotation'} ${q.quoteNumber}`}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>

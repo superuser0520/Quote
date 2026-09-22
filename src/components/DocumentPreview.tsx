@@ -41,6 +41,8 @@ interface DocumentPreviewProps {
   onMarkAsPaid: (invoiceId: string) => void;
   onUpdateStatus: (quotation: Quotation, status: QuotationStatus, poNumber?: string) => void;
   onEditQuotation: (quotation: Quotation) => void;
+  onReviseQuotation: (quotation: Quotation) => void;
+  onDeleteQuotation: (quotation: Quotation) => void;
   onBack: () => void;
   onCheckPOInEmail: () => void;
 }
@@ -60,6 +62,8 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   onMarkAsPaid,
   onUpdateStatus,
   onEditQuotation,
+  onReviseQuotation,
+  onDeleteQuotation,
   onBack,
   onCheckPOInEmail,
 }) => {
@@ -278,11 +282,15 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             <button
               onClick={() => onEditQuotation(quotation)}
               className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition"
-              title="Create a new quotation revision"
+              title="Edit this quotation without creating a revision"
             >
-              <Edit className="w-4 h-4" /> Revise quotation
+              <Edit className="w-4 h-4" /> Edit quotation
             </button>
           )}
+          {activeTab === 'quotation' && <>
+            <button onClick={() => onReviseQuotation(quotation)} className="h-9 px-3 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200">Revise quotation</button>
+            {!!quotation.revisionNumber && <button onClick={() => onDeleteQuotation(quotation)} className="h-9 px-3 text-xs font-bold text-red-700 hover:bg-red-50 rounded-lg border border-red-200">Delete revision</button>}
+          </>}
         </div>
       </div>
 
@@ -353,7 +361,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
           <div className="text-xs text-blue-900">
             <p className="font-bold text-sm text-blue-950">
-              Purchase Order Verified ({quotation.poNumber})
+              Purchase Order ({quotation.poNumber})
             </p>
             {quotation.poEmailSnippet && (
               <p className="mt-1 italic text-slate-600 bg-white/60 p-2 rounded border border-blue-100">
@@ -363,6 +371,11 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             <p className="mt-1 text-slate-500">
               Sender: <span className="font-semibold text-slate-700">{quotation.poEmailSender || quotation.client.email}</span>
             </p>
+            {quotation.poAttachments?.map(file => (
+              <a key={file.id} href={`/api/po-files/${file.id}`} target="_blank" rel="noreferrer" className="block mt-2 text-blue-700 underline break-all">
+                Open PO PDF: {file.filename}
+              </a>
+            ))}
           </div>
         </div>
       )}

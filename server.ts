@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
+import { poFilesRouter } from './poFiles';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -16,6 +17,7 @@ const DATA_DIR = process.env.DATA_DIR
   : path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 const DB_TEMP_FILE = path.join(DATA_DIR, 'db.json.tmp');
+app.use('/api/po-files', poFilesRouter(DATA_DIR));
 
 // Ensure data directory exists on Raspberry Pi filesystem
 if (!fs.existsSync(DATA_DIR)) {

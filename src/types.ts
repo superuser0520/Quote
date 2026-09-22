@@ -50,6 +50,7 @@ export interface Quotation {
   poEmailSubject?: string;
   poEmailSender?: string;
   poEmailId?: string;
+  poAttachments?: { id: string; filename: string }[];
   
   deliveryOrderId?: string;
   deliveryOrderNumber?: string;
@@ -133,6 +134,12 @@ export interface GmailEmailMessage {
   date: string;
   matchingQuoteNumber?: string;
   hasPOKeywords?: boolean;
+  poNumber?: string;
+  quotationReferences?: string[];
+  attachmentWarning?: string;
+  poPdfData?: { filename: string; data: string }[];
+  autoMatchEligible?: boolean;
+  attachments?: { filename: string; mimeType: string; attachmentId?: string; data?: string }[];
 }
 
 export interface GoogleSheetConfig {

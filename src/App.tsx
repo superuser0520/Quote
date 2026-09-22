@@ -18,6 +18,8 @@ import { effectiveQuotation, localDate, issueDocumentPair, markInvoicePaid, revi
 import { SendEmailModal } from './components/SendEmailModal';
 import { outstandingInvoicesForCustomer } from './lib/statementOfAccountPdf';
 import { initAuth, googleSignIn, logout } from './lib/firebase';
+import { linkPO, planPOImports, savePOPdfs } from './lib/poImport';
+import { deleteQuotationVersion } from './lib/workflows';
 
 import { Header } from './components/Header';
 import { DocumentList } from './components/DocumentList';
@@ -236,11 +238,12 @@ export default function App() {
     const linkedMessage = linkedDOs.length || linkedInvoices.length
       ? ` This also deletes ${linkedDOs.length} linked delivery order(s) and ${linkedInvoices.length} linked invoice(s).`
       : '';
-    if (!window.confirm(`Delete quotation ${quote.quoteNumber}?${linkedMessage} This cannot be undone.`)) return;
+    if (!window.confirm(`Delete ${quote.revisionNumber ? 'revision' : 'quotation'} ${quote.quoteNumber}? Other versions will be kept.${linkedMessage} This cannot be undone.`)) return;
 
-    const updatedQuotes = quotations.filter((item) => item.id !== quote.id);
-    const updatedDOs = deliveryOrders.filter((item) => item.quotationId !== quote.id);
-    const updatedInvoices = invoices.filter((item) => item.quotationId !== quote.id);
+    const result = deleteQuotationVersion(currentDatabase.current, quote.id);
+    const updatedQuotes = result.quotations;
+    const updatedDOs = result.deliveryOrders;
+    const updatedInvoices = result.invoices;
     setQuotations(updatedQuotes);
     setDeliveryOrders(updatedDOs);
     setInvoices(updatedInvoices);
@@ -248,6 +251,7 @@ export default function App() {
 
 
     syncAndSaveData(updatedQuotes, updatedDOs, updatedInvoices);
+    if (selectedQuoteId === quote.id) { setSelectedQuoteId(null); setView('list'); }
     showToast(`Quotation ${quote.quoteNumber} deleted.`, 'info');
   };
 
@@ -339,32 +343,40 @@ export default function App() {
   };
 
   // Email PO Confirmation Handler
-  const handleConfirmPOFromEmail = (
+  const handleRefreshPOs = async (emails: GmailEmailMessage[]) => {
+    const initial = planPOImports(currentDatabase.current.quotations, emails);
+    const savedFiles = new Map<string, NonNullable<Quotation['poAttachments']>>();
+    for (const plan of initial.plans) savedFiles.set(plan.email.id, await savePOPdfs(plan.email));
+    // Recheck after downloads so edits made during the request are preserved.
+    const current = currentDatabase.current.quotations;
+    const final = planPOImports(current, emails);
+    const ready = final.plans.filter(plan => savedFiles.has(plan.email.id));
+    const updated = current.map(q => {
+      const plan = ready.find(p => p.quoteId === q.id);
+      return plan ? linkPO(q, plan.email, savedFiles.get(plan.email.id)!) : q;
+    });
+    // Retry a failed previous database save even when these emails are already linked in memory.
+    if (ready.length || pendingDatabase()) {
+      const saved = await syncAndSaveData(updated);
+      if (!saved) throw new Error('PO links are pending a database save. Use Retry save or refresh again before closing the app.');
+    }
+    return { linked: ready.length, alreadyLinked: final.alreadyLinked,
+      review: [...final.review, ...final.plans.filter(p => !savedFiles.has(p.email.id)).map(p => ({email: p.email, reason: 'Quotation changed during refresh. Refresh again.'}))] };
+  };
+
+  const handleConfirmPOFromEmail = async (
     quote: Quotation,
     poNumber: string,
     emailDetails: GmailEmailMessage
   ) => {
-    const updatedQ: Quotation = {
-      ...quote,
-      poNumber,
-      poReceivedDate: new Date().toISOString().split('T')[0],
-      poEmailSnippet: emailDetails.snippet,
-      poEmailSubject: emailDetails.subject,
-      poEmailSender: emailDetails.senderEmail,
-      poEmailId: emailDetails.id,
-      status: 'PO Received',
-      updatedAt: new Date().toISOString(),
-    };
-
-    const updatedQuotes = quotations.map((q) => (q.id === quote.id ? updatedQ : q));
-    setQuotations(updatedQuotes);
-
-
-    if (selectedQuote?.id === quote.id) {
-      setSelectedQuote(updatedQ);
-    }
-
-    syncAndSaveData(updatedQuotes);
+    const files = await savePOPdfs(emailDetails);
+    const current = currentDatabase.current.quotations;
+    const target = current.find(q => q.id === quote.id);
+    if (!target || target.status !== 'Sent (Pending PO)' || !isLatestQuotation(current, target)) throw new Error('Quotation is no longer pending. Refresh to review.');
+    if (current.some(q => q.poEmailId === emailDetails.id || q.poNumber === poNumber)) throw new Error('This PO is already linked. Refresh to update the list.');
+    const updatedQ = linkPO(target, {...emailDetails, poNumber}, files);
+    const saved = await syncAndSaveData(current.map(q => q.id === target.id ? updatedQ : q));
+    if (!saved) throw new Error('PO link is pending a database save. Use Retry save before closing the app.');
     showToast(`PO ${poNumber} linked to Quote ${quote.quoteNumber}! Status updated to PO Received.`);
   };
 
@@ -487,6 +499,7 @@ export default function App() {
             onGenerateDOAndInvoice={handleGenerateDOAndInvoice}
             onMarkInvoicePaid={handleMarkAsPaid}
             onReviseQuotation={handleReviseQuotation}
+            onEditQuotation={(q) => { setSelectedQuote(q); setView('edit'); }}
             onSelectInvoice={(inv) => {
               setSelectedQuoteId(inv.quotationId);
               setSelectedDocument({type: 'invoice', id: inv.id});
@@ -555,7 +568,9 @@ export default function App() {
             onGenerateDOAndInvoice={handleGenerateDOAndInvoice}
             onMarkAsPaid={handleMarkAsPaid}
             onUpdateStatus={handleUpdateQuotationStatus}
-            onEditQuotation={handleReviseQuotation}
+            onEditQuotation={(q) => { setSelectedQuote(q); setView('edit'); }}
+            onReviseQuotation={handleReviseQuotation}
+            onDeleteQuotation={handleDeleteQuotation}
             onBack={() => setView('list')}
             onCheckPOInEmail={() => setIsPOCheckerOpen(true)}
           />
@@ -605,6 +620,8 @@ export default function App() {
         onClose={() => setIsPOCheckerOpen(false)}
         accessToken={accessToken}
         pendingQuotes={quotations.filter((q) => q.status === 'Sent (Pending PO)' && isLatestQuotation(quotations, q))}
+        linkedMessageIds={quotations.filter(q => q.poAttachments?.length).map(q => q.poEmailId).filter((id): id is string => Boolean(id))}
+        onImport={handleRefreshPOs}
         onConfirmPO={handleConfirmPOFromEmail}
         onLoginRequest={handleLogin}
       />

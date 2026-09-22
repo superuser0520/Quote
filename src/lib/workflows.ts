@@ -10,6 +10,16 @@ export const quotationVersions = (quotes: Quotation[], quote: Quotation) =>
     .sort((a, b) => (b.revisionNumber || 0) - (a.revisionNumber || 0));
 export const isLatestQuotation = (quotes: Quotation[], quote: Quotation) => quotationVersions(quotes, quote)[0]?.id === quote.id;
 
+export function deleteQuotationVersion(state: DatabaseState, quotationId: string): DatabaseState {
+  const target = uniqueRecord(state.quotations, quotationId, 'Quotation');
+  return { ...state,
+    quotations: state.quotations.filter(q => q.id !== target.id).map(q => q.revisionOfId === target.id
+      ? { ...q, revisionOfId: target.revisionOfId } : q),
+    deliveryOrders: state.deliveryOrders.filter(d => d.quotationId !== target.id),
+    invoices: state.invoices.filter(i => i.quotationId !== target.id),
+  };
+}
+
 export function effectiveQuotation(quote: Quotation, today = localDate()): Quotation {
   // Acceptance/issued documents do not expire just because the original offer date passed.
   if (!['Draft', 'Sent (Pending PO)', 'Expired'].includes(quote.status) || quote.poNumber || quote.invoiceId || quote.deliveryOrderId) return quote;
@@ -91,7 +101,7 @@ export function reviseQuotation(state: DatabaseState, sourceId: string, now = ne
     ...structuredClone(latest), id: crypto.randomUUID(), quoteNumber, revisionRootId: revisionRoot(source),
     revisionOfId: latest.id, revisionBaseNumber: base, revisionNumber,
     date: localDate(now), validUntil: localDate(valid), status: 'Draft',
-    poNumber: undefined, poReceivedDate: undefined, poEmailId: undefined, poEmailSnippet: undefined,
+    poNumber: undefined, poReceivedDate: undefined, poEmailId: undefined, poEmailSnippet: undefined, poAttachments: undefined,
     poEmailSubject: undefined, poEmailSender: undefined, invoiceId: undefined, invoiceNumber: undefined,
     deliveryOrderId: undefined, deliveryOrderNumber: undefined, syncedToSheet: false,
     createdAt: now.toISOString(), updatedAt: now.toISOString(),

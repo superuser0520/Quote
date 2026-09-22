@@ -1,3 +1,4 @@
+import { PO_QUERY, extractPONumber, quotationReferences, matchQuotation } from './poMatching';
 import { Quotation, GmailEmailMessage } from '../types';
 
 /**
@@ -101,79 +102,104 @@ export async function sendGmailDirectly(
   return await response.json();
 }
 
-export async function checkPOEmailsInGmail(
-  accessToken: string | null,
-  pendingQuotes: Quotation[]
-): Promise<GmailEmailMessage[]> {
-  if (!accessToken) {
-    return [
-      {
-        id: 'msg-sample-01',
-        threadId: 'thread-sample-01',
-        senderName: 'Acme Corp Procurement',
-        senderEmail: pendingQuotes[0]?.client.email || 'purchasing@acmecorp.com',
-        subject: `Re: Quotation ${pendingQuotes[0]?.quoteNumber || 'QT-2026-001'} - Purchase Order Enclosed (PO-88219)`,
-        snippet: `Dear Sales Team, We accept Quotation ${pendingQuotes[0]?.quoteNumber || 'QT-2026-001'}. Please find attached Purchase Order Ref PO-88219. Please proceed with DO delivery.`,
-        date: new Date().toLocaleDateString(),
-        matchingQuoteNumber: pendingQuotes[0]?.quoteNumber || 'QT-2026-001',
-      },
-    ];
-  }
-
-  try {
-    const query = encodeURIComponent('PO OR "Purchase Order" OR Quotation');
-    const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=10`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    if (!res.ok) {
-      throw new Error(`Gmail API error: ${res.statusText}`);
-    }
-
-    const data = await res.json();
-    if (!data.messages || data.messages.length === 0) {
-      return [];
-    }
-
-    const emailMessages: GmailEmailMessage[] = [];
-
-    for (const item of data.messages) {
-      const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${item.id}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (!msgRes.ok) continue;
-
-      const msgData = await msgRes.json();
-      const headers = msgData.payload?.headers || [];
-      const subjectHeader = headers.find((h: any) => h.name.toLowerCase() === 'subject')?.value || '(No Subject)';
-      const fromHeader = headers.find((h: any) => h.name.toLowerCase() === 'from')?.value || 'Unknown Sender';
-      const dateHeader = headers.find((h: any) => h.name.toLowerCase() === 'date')?.value || '';
-
-      const snippet = msgData.snippet || '';
-
-      let matchingQuoteNumber: string | undefined;
-      for (const q of pendingQuotes) {
-        if (subjectHeader.includes(q.quoteNumber) || snippet.includes(q.quoteNumber)) {
-          matchingQuoteNumber = q.quoteNumber;
-          break;
-        }
-      }
-
-      emailMessages.push({
-        id: msgData.id,
-        threadId: msgData.threadId || msgData.id,
-        senderName: fromHeader.split('<')[0].replace(/"/g, '').trim(),
-        senderEmail: fromHeader.includes('<') ? fromHeader.split('<')[1].replace('>', '').trim() : fromHeader,
-        subject: subjectHeader,
-        snippet,
-        date: dateHeader ? new Date(dateHeader).toLocaleDateString() : 'Today',
-        matchingQuoteNumber,
-      });
-    }
-
-    return emailMessages;
-  } catch (err) {
-    console.warn('Gmail API search error:', err);
-    return [];
-  }
+interface MimePart {
+  filename?: string;
+  mimeType?: string;
+  body?: { data?: string; attachmentId?: string };
+  parts?: MimePart[];
 }
+
+function flattenParts(part: MimePart): MimePart[] {
+  return [part, ...(part.parts || []).flatMap(flattenParts)];
+}
+
+export function decodeGmailBytes(data: string): Uint8Array {
+  return Uint8Array.from(atob(data.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+}
+
+async function gmailGet(token: string, resource: string) {
+  const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${resource}`, {
+    headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30000),
+  });
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) throw new Error('Gmail access expired or was denied. Sign in with Google again.');
+    throw new Error(`Gmail scan failed (${response.status}). Please retry.`);
+  }
+  return response.json();
+}
+
+export async function getPOAttachment(token: string, messageId: string, file: NonNullable<GmailEmailMessage['attachments']>[number]) {
+  const data = file.data || (await gmailGet(token, `messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(file.attachmentId!)}`)).data;
+  if (!data) throw new Error('The attachment could not be downloaded.');
+  return decodeGmailBytes(data);
+}
+
+export function createPOScanner(readPdf: (data: Uint8Array) => Promise<string>) {
+  let cachedToken: string | null = null;
+  const cache = new Map<string, GmailEmailMessage>();
+  return async (accessToken: string | null, pendingQuotes: Quotation[]): Promise<GmailEmailMessage[]> => {
+    if (cachedToken !== accessToken) { cache.clear(); cachedToken = accessToken; }
+    if (!accessToken) return [];
+    const ids = new Set<string>();
+    let pageToken: string | undefined;
+    do {
+      const params = new URLSearchParams({ q: PO_QUERY, maxResults: '100' });
+      if (pageToken) params.set('pageToken', pageToken);
+      const page = await gmailGet(accessToken, `messages?${params}`);
+      for (const item of page.messages || []) ids.add(item.id);
+      pageToken = page.nextPageToken;
+    } while (pageToken);
+    const messages: GmailEmailMessage[] = [];
+    for (const id of ids) {
+      let message = cache.get(id);
+      if (!message) {
+        const raw = await gmailGet(accessToken, `messages/${encodeURIComponent(id)}?format=full`);
+        const header = (name: string) => (raw.payload?.headers || []).find((h: {name: string}) => h.name.toLowerCase() === name)?.value || '';
+        const subject = header('subject');
+        const from = header('from');
+        const senderEmail = (from.match(/<([^>]+)>/)?.[1] || from).trim();
+        const parts = flattenParts(raw.payload || {});
+        const attachments = parts.filter(p => p.filename && (p.body?.attachmentId || p.body?.data)).map(p => ({
+          filename: p.filename!, mimeType: p.mimeType || 'application/octet-stream', attachmentId: p.body?.attachmentId, data: p.body?.data,
+        }));
+        const body = parts.filter(p => /^text\//.test(p.mimeType || '') && !p.filename && p.body?.data)
+          .map(p => new TextDecoder().decode(decodeGmailBytes(p.body!.data!))).join('\n').replace(/<[^>]*>/g, ' ');
+        let text = [subject, body, ...attachments.map(a => a.filename)].join('\n');
+        const shimano = /@(?:[\w-]+\.)?shimano\.com\.sg$/i.test(senderEmail)
+          && /\bSMN2100PPE\s+1040340\s+PON\d{10}\b/i.test(subject);
+        if (!shimano && !/\bpurchase\s+order\b|\bPO\b/i.test(subject + ' ' + body)) continue;
+        let attachmentWarning: string | undefined;
+        const poPdfData: { filename: string; data: string }[] = [];
+        const subjectPO = extractPONumber(subject);
+        for (const file of attachments.filter(a => /\.pdf$/i.test(a.filename))) {
+          try {
+            const bytes = await getPOAttachment(accessToken, id, file);
+            const pdfText = await readPdf(bytes.slice());
+            const documentPO = extractPONumber(pdfText);
+            if (shimano && (!documentPO || documentPO !== subjectPO)) {
+              attachmentWarning = 'The PDF PO number does not match the email. Review the original before linking.';
+            }
+            text += '\n' + pdfText;
+            poPdfData.push({ filename: file.filename, data: bytesToBase64(bytes) });
+          }
+          catch (error) {
+            if (error instanceof Error && /Gmail/.test(error.message)) throw error;
+            attachmentWarning = 'Could not read a PDF attachment. Open the original and select the quotation manually.';
+          }
+        }
+        const refs = quotationReferences(text);
+        message = { id, threadId: raw.threadId || id, subject, senderEmail,
+          senderName: from.split('<')[0].replace(/"/g, '').trim(), snippet: raw.snippet || '',
+          date: new Date(Number(raw.internalDate)).toLocaleDateString(), poNumber: extractPONumber(text),
+          quotationReferences: refs, attachments, attachmentWarning, poPdfData, autoMatchEligible: shimano };
+        if (!attachmentWarning) cache.set(id, message);
+      }
+      messages.push({ ...message, matchingQuoteNumber: matchQuotation(message.quotationReferences || [], pendingQuotes) });
+    }
+    for (const key of cache.keys()) if (!ids.has(key)) cache.delete(key);
+    return messages;
+  };
+}
+
+const scanPOEmails = createPOScanner(async data => (await import('./poPdf')).readPOPdf(data));
+export const checkPOEmailsInGmail = scanPOEmails;

@@ -132,15 +132,16 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
       taxTotal: Number(taxTotal.toFixed(2)),
       grandTotal,
       currency,
-      status: status as any,
+      status: poNumber.trim() && ['Draft', 'Sent (Pending PO)', 'Expired'].includes(status) ? 'PO Received' : status as Quotation['status'],
       notes,
       terms,
       poNumber: poNumber.trim() || undefined,
       poReceivedDate: poNumber.trim() ? poReceivedDate : undefined,
-      poEmailSnippet: initialQuotation?.poEmailSnippet,
-      poEmailSubject: initialQuotation?.poEmailSubject,
-      poEmailSender: initialQuotation?.poEmailSender,
-      poEmailId: initialQuotation?.poEmailId,
+      poEmailSnippet: poNumber.trim() === initialQuotation?.poNumber ? initialQuotation.poEmailSnippet : undefined,
+      poEmailSubject: poNumber.trim() === initialQuotation?.poNumber ? initialQuotation.poEmailSubject : undefined,
+      poEmailSender: poNumber.trim() === initialQuotation?.poNumber ? initialQuotation.poEmailSender : undefined,
+      poEmailId: poNumber.trim() === initialQuotation?.poNumber ? initialQuotation.poEmailId : undefined,
+      poAttachments: poNumber.trim() === initialQuotation?.poNumber ? initialQuotation.poAttachments : undefined,
       deliveryOrderId: initialQuotation?.deliveryOrderId,
       deliveryOrderNumber: initialQuotation?.deliveryOrderNumber,
       invoiceId: initialQuotation?.invoiceId,
@@ -539,12 +540,13 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
                 <option value="Cancelled">Cancelled</option>
               </select>
             </div>
-            {['PO Received', 'DO Issued', 'Invoice Issued', 'Paid'].includes(status) && (
+            {(
               <>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">PO Number</label>
+                  <label htmlFor="quotation-po-number" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">PO Number</label>
                   <input
-                    required
+                    id="quotation-po-number"
+                    required={['PO Received', 'DO Issued', 'Invoice Issued', 'Paid'].includes(status)}
                     value={poNumber}
                     onChange={(e) => setPoNumber(e.target.value)}
                     placeholder="e.g. PO-2026-001"
@@ -555,7 +557,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
                   <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">PO Received Date</label>
                   <input
                     type="date"
-                    required
+                    required={Boolean(poNumber.trim())}
                     value={poReceivedDate}
                     onChange={(e) => setPoReceivedDate(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"

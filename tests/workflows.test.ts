@@ -7,8 +7,20 @@ import { sendGmailDirectly } from '../src/lib/gmail';
 import { saveServerDatabase, pendingDatabase } from '../src/lib/dbClient';
 import type { DatabaseState } from '../src/lib/dbClient';
 import type { Quotation } from '../src/types';
+import { deleteQuotationVersion } from '../src/lib/workflows';
 
 const now = new Date(2026, 8, 22, 12);
+test('deleting revisions keeps other versions and promotes the previous latest', () => {
+  const first = reviseQuotation(fixture(), 'q-a', now);
+  const second = reviseQuotation(first.state, first.quotation.id, now);
+  const deletedMiddle = deleteQuotationVersion(second.state, first.quotation.id);
+  assert.equal(deletedMiddle.quotations.find(q => q.id === second.quotation.id)?.revisionOfId, 'q-a');
+  assert.equal(isLatestQuotation(deletedMiddle.quotations, second.quotation), true);
+  const deletedLatest = deleteQuotationVersion(second.state, second.quotation.id);
+  assert.equal(isLatestQuotation(deletedLatest.quotations, first.quotation), true);
+  assert.ok(deletedLatest.quotations.some(q => q.id === 'q-a'));
+  assert.ok(deletedLatest.quotations.some(q => q.id === 'q-b'));
+});
 function fixture(): DatabaseState {
   const quote: Quotation = {
     id: 'q-a', quoteNumber: 'QT-2026-001', client: {name:'Alice', companyName:'Buyer', email:'alice@example.com',phone:'',address:'Buyer address'},

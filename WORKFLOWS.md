@@ -2,6 +2,9 @@
 
 ## Using the updated workflows
 
+- **Gmail PO Inbox → Refresh POs** manually scans Gmail, reads PO PDFs and matches exact quotation references. Verified Shimano vendor 1040340 messages use `SMN2100PPE 1040340 PON<10 digits> <timestamp>`. Clear matches save the PDF first, link the PO number and set pending quotations to **PO Received**. Issued and paid statuses remain intact. Repeated refreshes skip already-linked messages; ambiguous, conflicting and unreadable POs need review. Other senders require manual review. No timer or background refresh runs.
+- Saved **PO PDFs** are available in the quotation, DO and invoice preview banner, including after reload. Files live in `DATA_DIR/po-files` and database records hold their content IDs; back up this directory together with `db.json`. Individual PDFs are limited to 7 MB. Google sign-in is required to refresh; expired Gmail access prompts reconnection. PDF extraction currently requires selectable text (scanned images need manual review).
+
 - **Issue & email DO + Invoice** creates both records in one operation, saves them, and opens a single email with both PDFs selected. Review the recipient and click **Send DO + Invoice together**. Reopening the action reuses the existing documents instead of generating duplicates. Google sign-in is required to send.
 - **Expired** contains the latest unaccepted quotations whose valid-until date has passed. A quote remains valid through that date in the browser's local time. The tracker refreshes on opening the app, every 30 seconds, and on window focus. Quotes with a PO or issued documents, paid quotes and cancelled quotes are not automatically expired.
 - **Mark paid** targets the invoice on that row or in that preview by its exact ID. Other invoices remain unchanged. A quotation becomes Paid only when all its linked invoices are paid. Legacy duplicate IDs are rejected rather than guessed.
