@@ -28,11 +28,10 @@ import { DocumentPreview } from './components/DocumentPreview';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { POEmailCheckerModal } from './components/POEmailCheckerModal';
 import { CompanyProfileModal } from './components/CompanyProfileModal';
-import { RaspberryPiGuideModal } from './components/RaspberryPiGuideModal';
 import { ManualRecordModal } from './components/ManualRecordModal';
 import { StatementOfAccountEmailModal } from './components/StatementOfAccountEmailModal';
 
-import { CheckCircle2, AlertCircle, Mail, FileText, TrendingUp, Server, Database } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Mail, FileText, TrendingUp, Database } from 'lucide-react';
 
 export default function App() {
   // Auth state
@@ -63,7 +62,6 @@ export default function App() {
   // Modal open states
   const [isPOCheckerOpen, setIsPOCheckerOpen] = useState(false);
   const [isCompanyProfileOpen, setIsCompanyProfileOpen] = useState(false);
-  const [isPiGuideOpen, setIsPiGuideOpen] = useState(false);
   const [isManualRecordOpen, setIsManualRecordOpen] = useState(false);
   const [soaInvoice, setSoaInvoice] = useState<Invoice | null>(null);
 
@@ -439,33 +437,6 @@ export default function App() {
   const activeInvoice = linkedInvoices.find(inv => selectedDocument.type === 'invoice' && inv.id === selectedDocument.id)
     || (linkedInvoices.length === 1 ? linkedInvoices[0] : null);
 
-  const handleImportDatabase = (imported: {
-    quotations?: Quotation[];
-    deliveryOrders?: DeliveryOrder[];
-    invoices?: Invoice[];
-    companyProfile?: CompanyProfile;
-  }) => {
-    if (imported.quotations) {
-      setQuotations(imported.quotations);
-
-    }
-    if (imported.deliveryOrders) {
-      setDeliveryOrders(imported.deliveryOrders);
-
-    }
-    if (imported.invoices) {
-      setInvoices(imported.invoices);
-
-    }
-    if (imported.companyProfile) {
-      setCompanyProfile(imported.companyProfile);
-
-    }
-    const merged = {...currentDatabase.current, ...Object.fromEntries(Object.entries(imported).filter(([, value]) => value !== undefined))};
-    syncAndSaveData(merged.quotations, merged.deliveryOrders, merged.invoices, merged.companyProfile);
-    showToast('Database imported.');
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col">
       {/* Toast Notification */}
@@ -491,7 +462,6 @@ export default function App() {
         }}
         onOpenCompanyProfile={() => setIsCompanyProfileOpen(true)}
         onOpenEmailChecker={() => setIsPOCheckerOpen(true)}
-        onOpenPiGuide={() => setIsPiGuideOpen(true)}
         pendingPOCount={pendingPOCount}
       />
 
@@ -550,7 +520,6 @@ export default function App() {
               quotations={quotations}
               invoices={invoices}
               currency="MYR"
-              onOpenPiGuide={() => setIsPiGuideOpen(true)}
             />
           </div>
         )}
@@ -607,14 +576,6 @@ export default function App() {
             <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
             SYSTEM: ONLINE
           </span>
-          <span className="hidden sm:inline text-slate-600">|</span>
-          <button
-            onClick={() => setIsPiGuideOpen(true)}
-            className="flex items-center gap-1 font-mono text-emerald-400 hover:underline"
-          >
-            <Server className="w-3 h-3" />
-            <span>PI SELF-HOST READY</span>
-          </button>
         </div>
         <div className="flex items-center gap-4">
           <span className="font-mono text-slate-400 hidden md:inline">
@@ -654,16 +615,6 @@ export default function App() {
         onClose={() => setIsCompanyProfileOpen(false)}
         companyProfile={companyProfile}
         onSave={handleSaveCompanyProfile}
-      />
-
-      <RaspberryPiGuideModal
-        isOpen={isPiGuideOpen}
-        onClose={() => setIsPiGuideOpen(false)}
-        quotations={quotations}
-        deliveryOrders={deliveryOrders}
-        invoices={invoices}
-        companyProfile={companyProfile}
-        onImportData={handleImportDatabase}
       />
 
       <ManualRecordModal

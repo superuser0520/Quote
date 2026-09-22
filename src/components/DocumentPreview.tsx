@@ -163,7 +163,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                     : 'bg-amber-50 text-amber-700 border-amber-200'
                 }`}
               >
-                {activeTab === 'invoice' && invoice ? (isInvoiceOverdue ? `OVERDUE (${daysOverdue}d)` : invoice.status) : quotation.status}
+                {activeTab === 'invoice' && invoice ? (invoice.status === 'Paid' ? 'Paid' : 'Unpaid') : quotation.status}
               </span>
             </div>
             <p className="text-xs text-slate-500">
@@ -196,7 +196,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             disabled={!invoice}
             onClick={() => setActiveTab('invoice')}
             className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold transition ${
-              activeTab === 'invoice' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              activeTab === 'invoice' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Receipt className="w-3.5 h-3.5" />

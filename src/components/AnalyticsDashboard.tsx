@@ -13,13 +13,13 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Calculator, CheckCircle2, DollarSign, PieChart as PieIcon, Server, TrendingUp } from 'lucide-react';
+import { Calculator, CheckCircle2, DollarSign, PieChart as PieIcon, TrendingUp } from 'lucide-react';
+import { quotationPaymentStatus } from '../lib/workflows';
 
 interface AnalyticsDashboardProps {
   quotations: Quotation[];
   invoices: Invoice[];
   currency?: string;
-  onOpenPiGuide: () => void;
 }
 
 const PO_STATUSES: Quotation['status'][] = ['PO Received', 'DO Issued', 'Invoice Issued', 'Paid'];
@@ -32,8 +32,8 @@ const capitalCost = (quotation: Quotation) =>
 
 export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   quotations,
+  invoices,
   currency = 'MYR',
-  onOpenPiGuide,
 }) => {
   const [selectedYear, setSelectedYear] = useState('all');
 
@@ -59,6 +59,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     );
   }, [poQuotations, selectedYear]);
 
+  const isPaid = (quote: Quotation) => quotationPaymentStatus(quote, invoices) === 'Paid';
+
   const filteredQuotations = useMemo(() => {
     if (selectedYear === 'all') return quotations;
     return quotations.filter((quote) => quote.date.startsWith(selectedYear));
@@ -77,7 +79,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         totals.revenue += revenue;
         totals.capital += capital;
         totals.profit += profit;
-        if (quote.status === 'Paid') {
+        if (isPaid(quote)) {
           totals.realisedProfit += profit;
         } else {
           totals.unrealisedProfit += profit;
@@ -89,7 +91,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       },
       { revenue: 0, capital: 0, profit: 0, realisedProfit: 0, unrealisedProfit: 0, incompleteCostPOs: 0 },
     );
-  }, [filteredPOs]);
+  }, [filteredPOs, invoices]);
 
   const monthlyData = useMemo(() => {
     const months = new Map<string, {
@@ -113,17 +115,17 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       const profit = quote.grandTotal - capital;
       row.poRevenue += quote.grandTotal;
       row.capitalSpend += capital;
-      if (quote.status === 'Paid') row.realisedProfit += profit;
+      if (isPaid(quote)) row.realisedProfit += profit;
       else row.unrealisedProfit += profit;
       months.set(month, row);
     });
 
     return Array.from(months.values()).sort((a, b) => a.month.localeCompare(b.month));
-  }, [filteredPOs]);
+  }, [filteredPOs, invoices]);
 
   const statusData = [
-    { name: 'PO received - unpaid', value: filteredPOs.filter((quote) => quote.status !== 'Paid').length, color: '#3b82f6' },
-    { name: 'Paid / realised', value: filteredPOs.filter((quote) => quote.status === 'Paid').length, color: '#10b981' },
+    { name: 'Unpaid', value: filteredPOs.filter((quote) => !isPaid(quote)).length, color: '#3b82f6' },
+    { name: 'Paid', value: filteredPOs.filter((quote) => isPaid(quote)).length, color: '#10b981' },
   ].filter((item) => item.value > 0);
 
   const money = (value: number) =>
@@ -204,13 +206,6 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               </button>
             ))}
           </div>
-          <button
-            onClick={onOpenPiGuide}
-            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl"
-          >
-            <Server className="w-4 h-4 text-emerald-400" />
-            Raspberry Pi & Self-Hosting
-          </button>
         </div>
       </div>
 
@@ -285,7 +280,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             <PieIcon className="w-5 h-5 text-indigo-600" />
             PO Payment Status
           </h3>
-          <p className="text-xs text-slate-500 mt-1">Unpaid profit remains unrealised until the linked quotation is marked Paid.</p>
+          <p className="text-xs text-slate-500 mt-1">Payment status follows the latest linked invoice.</p>
 
           {statusData.length > 0 ? (
             <div className="h-56 w-full my-3">

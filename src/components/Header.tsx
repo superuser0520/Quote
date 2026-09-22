@@ -5,7 +5,6 @@ import {
   Building2,
   PlusCircle,
   TrendingUp,
-  Server,
   LogOut,
   Layers,
   CheckCircle2,
@@ -23,7 +22,6 @@ interface HeaderProps {
   onOpenNewQuote: () => void;
   onOpenCompanyProfile: () => void;
   onOpenEmailChecker: () => void;
-  onOpenPiGuide: () => void;
   pendingPOCount: number;
 }
 
@@ -38,7 +36,6 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenNewQuote,
   onOpenCompanyProfile,
   onOpenEmailChecker,
-  onOpenPiGuide,
   pendingPOCount,
 }) => {
   return (
@@ -92,16 +89,6 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Status Indicators & Action Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Raspberry Pi Self Host Button */}
-          <button
-            onClick={onOpenPiGuide}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition shadow-xs"
-            title="Deploy on Raspberry Pi & Custom Domain"
-          >
-            <Server className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Raspberry Pi</span>
-          </button>
-
           {/* New Quote Button */}
           <button
             onClick={onOpenNewQuote}

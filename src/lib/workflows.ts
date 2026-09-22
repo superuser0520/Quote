@@ -10,6 +10,12 @@ export const quotationVersions = (quotes: Quotation[], quote: Quotation) =>
     .sort((a, b) => (b.revisionNumber || 0) - (a.revisionNumber || 0));
 export const isLatestQuotation = (quotes: Quotation[], quote: Quotation) => quotationVersions(quotes, quote)[0]?.id === quote.id;
 
+export function quotationPaymentStatus(quote: Quotation, invoices: Invoice[]): 'Paid' | 'Unpaid' {
+  const latestInvoice = invoices.filter(invoice => invoice.quotationId === quote.id)
+    .sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt))[0];
+  return (latestInvoice ? latestInvoice.status === 'Paid' : quote.status === 'Paid') ? 'Paid' : 'Unpaid';
+}
+
 export function deleteQuotationVersion(state: DatabaseState, quotationId: string): DatabaseState {
   const target = uniqueRecord(state.quotations, quotationId, 'Quotation');
   return { ...state,

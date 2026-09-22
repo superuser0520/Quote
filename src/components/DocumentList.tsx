@@ -42,6 +42,19 @@ interface DocumentListProps {
   onMarkDeliveryOrderDelivered: (deliveryOrder: DeliveryOrder) => void;
 }
 
+const CollapsibleActions: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <details className="inline-block min-w-[108px] text-left">
+    <summary className="list-none cursor-pointer h-9 px-3 inline-flex items-center justify-center rounded-lg border border-indigo-200 bg-white text-indigo-700 font-bold text-xs hover:bg-indigo-50">
+      Actions <ChevronRight className="w-3.5 h-3.5 ml-1 rotate-90" />
+    </summary>
+    <div className="mt-2 flex flex-col gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1.5">
+      {children}
+    </div>
+  </details>
+);
+
+const actionClass = 'w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-indigo-700 hover:bg-indigo-100';
+
 export const DocumentList: React.FC<DocumentListProps> = ({
   quotations,
   deliveryOrders,
@@ -188,28 +201,28 @@ export const DocumentList: React.FC<DocumentListProps> = ({
       {/* Main Table Card */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
         {/* Controls Bar */}
-        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col gap-3">
           {/* Tab Filters */}
-          <div className="flex flex-wrap items-center gap-1 bg-slate-200/60 p-1 rounded-lg border border-slate-200/80">
+          <div className="flex flex-nowrap items-center gap-1 overflow-x-auto bg-slate-200/60 p-1 rounded-lg border border-slate-200/80">
             <button
               onClick={() => setActiveTab('all')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+              className={`shrink-0 px-3 py-1.5 text-xs font-bold rounded-md transition ${
                 activeTab === 'all' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Quotations ({activeQuotes.length})
             </button>
             <button onClick={() => {setActiveTab('expired'); setStatusFilter('all');}}
-              className={`px-3 py-1.5 text-xs font-bold rounded-md ${activeTab === 'expired' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-600'}`}>
+              className={`shrink-0 px-3 py-1.5 text-xs font-bold rounded-md transition ${activeTab === 'expired' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}>
               Expired ({expiredQuotes.length})
             </button>
             <button onClick={() => {setActiveTab('history'); setStatusFilter('all');}}
-              className={`px-3 py-1.5 text-xs font-bold rounded-md ${activeTab === 'history' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600'}`}>
+              className={`shrink-0 px-3 py-1.5 text-xs font-bold rounded-md transition ${activeTab === 'history' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}>
               Earlier versions ({historicQuotes.length})
             </button>
             <button
               onClick={() => setActiveTab('dos')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+              className={`shrink-0 px-3 py-1.5 text-xs font-bold rounded-md transition ${
                 activeTab === 'dos' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -217,7 +230,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
             </button>
             <button
               onClick={() => setActiveTab('invoices')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
+              className={`shrink-0 px-3 py-1.5 text-xs font-bold rounded-md transition ${
                 activeTab === 'invoices' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -226,7 +239,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
           </div>
 
           {/* Search & Status Filters & Manual Add */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             {activeTab === 'invoices' && (
               <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-1">
                 <select
@@ -315,7 +328,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                   filteredQuotes.map((q) => {
                     const { cost, profit, margin, hasEstimatedCost } = quotationProfit(q);
                     return (
-                    <tr key={q.id} className="hover:bg-slate-50/80 transition group">
+                    <tr key={q.id} className="align-middle hover:bg-slate-50/80 transition group">
                       <td className="py-3.5 px-4 font-mono font-bold text-indigo-600">
                         {q.quoteNumber}
                       </td>
@@ -385,31 +398,15 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                         )}
                       </td>
                       {/* Actions */}
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="inline-flex items-center gap-2 whitespace-nowrap">
-                          <button
-                            onClick={() => onSelectQuotation(q)}
-                            className="h-9 px-3 border border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-lg font-bold text-xs transition inline-flex items-center gap-1.5"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            View / Print
+                      <td className="py-3.5 px-4 text-right align-top">
+                        <CollapsibleActions>
+                          <button onClick={() => onSelectQuotation(q)} className={actionClass}><Eye className="mr-1 inline h-3.5 w-3.5" />View / Print</button>
+                          <button onClick={() => onEditQuotation(q)} title="Edit this quotation without creating a revision" className={actionClass}>Edit</button>
+                          <button onClick={() => onReviseQuotation(q)} className={actionClass}>Revise</button>
+                          <button onClick={() => onDeleteQuotation(q)} className="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-red-700 hover:bg-red-100">
+                            <Trash2 className="mr-1 inline h-3.5 w-3.5" />Delete {q.revisionNumber ? 'revision' : 'quotation'}
                           </button>
-                          <button onClick={() => onEditQuotation(q)} title="Edit this quotation without creating a revision"
-                            className="h-9 px-3 border border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-lg font-bold text-xs">Edit</button>
-                          <button
-                            onClick={() => onReviseQuotation(q)}
-                            className="h-9 px-3 border border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-lg font-bold text-xs">
-                            Revise
-                          </button>
-                          <button
-                            onClick={() => onDeleteQuotation(q)}
-                            className="h-9 w-9 inline-flex items-center justify-center text-red-600 hover:text-white hover:bg-red-600 border border-red-200 rounded-lg transition"
-                            title={q.revisionNumber ? 'Delete this revision' : 'Delete this quotation'}
-                            aria-label={`Delete ${q.revisionNumber ? 'revision' : 'quotation'} ${q.quoteNumber}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                        </CollapsibleActions>
                       </td>
                     </tr>
                     );
@@ -434,7 +431,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {deliveryOrders.map((doDoc) => (
-                  <tr key={doDoc.id} className="hover:bg-slate-50">
+                  <tr key={doDoc.id} className="align-middle hover:bg-slate-50">
                     <td className="py-3.5 px-4 font-mono font-bold text-indigo-600">{doDoc.doNumber}</td>
                     <td className="py-3.5 px-4 font-mono text-slate-600">{doDoc.quoteNumber}</td>
                     <td className="py-3.5 px-4 font-semibold text-slate-900">{doDoc.client.name}</td>
@@ -444,12 +441,12 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                         {doDoc.status}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <div className="inline-flex items-center gap-2">
+                    <td className="py-3.5 px-4 text-right align-top">
+                      <CollapsibleActions>
                         {doDoc.status !== 'Delivered' && (
                           <button
                             onClick={() => onMarkDeliveryOrderDelivered(doDoc)}
-                            className="px-3 py-1 bg-emerald-600 text-white rounded-lg font-bold text-xs hover:bg-emerald-700 transition"
+                            className="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-emerald-700 hover:bg-emerald-100"
                             title="Mark this delivery order as delivered"
                           >
                             Mark delivered
@@ -458,20 +455,20 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                       {quotations.find((q) => q.id === doDoc.quotationId) && (
                         <button
                           onClick={() => onSelectDeliveryOrder(doDoc)}
-                          className="px-3 py-1 bg-indigo-600 text-white rounded-lg font-bold text-xs hover:bg-indigo-700 transition"
+                          className={actionClass}
                         >
                           View DO
                         </button>
                       )}
                         <button
                           onClick={() => onDeleteDeliveryOrder(doDoc)}
-                          className="p-1.5 text-red-600 hover:text-white hover:bg-red-600 border border-red-200 rounded-lg transition"
+                          className="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-red-700 hover:bg-red-100"
                           title="Delete delivery order"
                           aria-label={`Delete delivery order ${doDoc.doNumber}`}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="mr-1 inline w-3.5 h-3.5" /> Delete delivery order
                         </button>
-                      </div>
+                      </CollapsibleActions>
                     </td>
                   </tr>
                 ))}
@@ -494,27 +491,24 @@ export const DocumentList: React.FC<DocumentListProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {invoices.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-slate-50">
+                  <tr key={inv.id} className="align-middle hover:bg-slate-50">
                     <td className="py-3.5 px-4 font-mono font-bold text-emerald-600">{inv.invoiceNumber}</td>
                     <td className="py-3.5 px-4 font-mono text-slate-600">{inv.quoteNumber}</td>
                     <td className="py-3.5 px-4 font-semibold text-slate-900">{inv.client.name}</td>
                     <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
                       {inv.currency} {inv.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
-                    <td className="py-3.5 px-4">
-                      <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        {inv.status}
+                    <td className="py-3.5 px-4 align-middle">
+                      <span className={`inline-flex min-w-[64px] justify-center rounded-md border px-2.5 py-0.5 text-[11px] font-bold ${inv.status === 'Paid' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                        {inv.status === 'Paid' ? 'Paid' : 'Unpaid'}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <details className="relative inline-block text-left">
-                        <summary className="list-none cursor-pointer h-9 px-3 inline-flex items-center rounded-lg border border-indigo-200 text-indigo-700 font-bold text-xs hover:bg-indigo-50">Actions <ChevronRight className="w-3.5 h-3.5 ml-1 rotate-90" /></summary>
-                        <div className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
-                          {inv.status !== 'Paid' ? <button onClick={() => onMarkInvoicePaid(inv.id)} className="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-emerald-700 hover:bg-emerald-50">Mark paid</button> : <button onClick={() => onMarkInvoiceUnpaid(inv.id)} className="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-amber-700 hover:bg-amber-50">Mark unpaid</button>}
-                          {quotations.find((q) => q.id === inv.quotationId) && <button onClick={() => onSelectInvoice(inv)} className="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-indigo-700 hover:bg-indigo-50">View invoice</button>}
-                          <button onClick={() => onDeleteInvoice(inv)} className="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-red-700 hover:bg-red-50">Delete invoice</button>
-                        </div>
-                      </details>
+                    <td className="py-3.5 px-4 text-right align-top">
+                      <CollapsibleActions>
+                        {inv.status !== 'Paid' ? <button onClick={() => onMarkInvoicePaid(inv.id)} className="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-emerald-700 hover:bg-emerald-100">Mark paid</button> : <button onClick={() => onMarkInvoiceUnpaid(inv.id)} className="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-amber-700 hover:bg-amber-100">Mark unpaid</button>}
+                        {quotations.find((q) => q.id === inv.quotationId) && <button onClick={() => onSelectInvoice(inv)} className={actionClass}>View invoice</button>}
+                        <button onClick={() => onDeleteInvoice(inv)} className="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-red-700 hover:bg-red-100">Delete invoice</button>
+                      </CollapsibleActions>
                     </td>
                   </tr>
                 ))}

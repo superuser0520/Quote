@@ -5,7 +5,7 @@ export function documentQuotation(type: 'quotation' | 'do' | 'invoice', quotatio
   if (type === 'invoice' && invoice) return {...quotation,
     client: invoice.client, items: invoice.items, currency: invoice.currency,
     subtotal: invoice.subtotal, discountTotal: invoice.discountTotal, taxTotal: invoice.taxTotal,
-    grandTotal: invoice.grandTotal, poNumber: invoice.poNumber, quoteNumber: invoice.quoteNumber,
+    grandTotal: invoice.grandTotal, poNumber: invoice.poNumber || quotation.poNumber, quoteNumber: invoice.quoteNumber,
   };
   if (type === 'do' && deliveryOrder) return {...quotation,
     client: {...deliveryOrder.client, address: deliveryOrder.deliveryAddress}, quoteNumber: deliveryOrder.quoteNumber,

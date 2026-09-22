@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { effectiveQuotation, issueDocumentPair, markInvoicePaid, markInvoiceUnpaid, reviseQuotation, quotationVersions, isLatestQuotation } from '../src/lib/workflows';
+import { effectiveQuotation, issueDocumentPair, markInvoicePaid, markInvoiceUnpaid, reviseQuotation, quotationVersions, isLatestQuotation, quotationPaymentStatus } from '../src/lib/workflows';
 import { documentQuotation } from '../src/lib/documentData';
 import { createDocumentPdf } from '../src/lib/quotationPdf';
 import { sendGmailDirectly } from '../src/lib/gmail';
@@ -32,6 +32,15 @@ test('marking a paid invoice unpaid clears payment and reopens the quotation inv
   assert.equal(unpaid.invoices[0].status, 'Unpaid');
   assert.equal(unpaid.invoices[0].paidAt, undefined);
   assert.equal(unpaid.quotations.find(q => q.id === 'q-a')?.status, 'Invoice Issued');
+});
+
+test('PO payment analytics follows the latest linked invoice status', () => {
+  const state = issueDocumentPair(fixture(), 'q-a', now).state;
+  const original = state.invoices[0];
+  const olderPaid = {...original, id: 'older', status: 'Paid' as const, updatedAt: '2026-09-20T00:00:00.000Z'};
+  const latestUnpaid = {...original, id: 'latest', status: 'Unpaid' as const, updatedAt: '2026-09-21T00:00:00.000Z'};
+  assert.equal(quotationPaymentStatus({...state.quotations[0], status:'Paid'}, [olderPaid, latestUnpaid]), 'Unpaid');
+  assert.equal(quotationPaymentStatus(state.quotations[0], [latestUnpaid, {...olderPaid, updatedAt:'2026-09-22T00:00:00.000Z'}]), 'Paid');
 });
 function fixture(): DatabaseState {
   const quote: Quotation = {
@@ -143,11 +152,14 @@ test('rendering issued documents uses their saved items, client and totals', () 
   assert.equal(invoice.grandTotal,100);
   assert.equal(invoice.client.name,'Alice');
   assert.equal(invoice.items[0].description,'Original item');
+  assert.equal(documentQuotation('invoice', {...changed, poNumber:'4503155546'}, pair.deliveryOrder, {...pair.invoice, poNumber:undefined}).poNumber, '4503155546');
   assert.equal(delivery.items[0].description,'Original item');
   const pdf=createDocumentPdf('invoice',changed,pair.state.companyProfile,pair.deliveryOrder,pair.invoice);
   const text=Buffer.from(pdf.data).toString('latin1');
   assert.match(text,/Original item/);
   assert.doesNotMatch(text,/Changed quote|1998\.00|Wrong name/);
+  const poPdf=createDocumentPdf('invoice',{...changed,poNumber:'4503155546'},pair.state.companyProfile,pair.deliveryOrder,{...pair.invoice,poNumber:undefined});
+  assert.match(Buffer.from(poPdf.data).toString('latin1'),/PO reference: 4503155546/);
 });
 
 test('combined email sends exactly one Gmail request with two independent PDF attachments', async t => {
