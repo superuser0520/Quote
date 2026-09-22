@@ -1,6 +1,6 @@
 export type DocumentType = 'Quotation' | 'DeliveryOrder' | 'Invoice';
 
-export type QuotationStatus = 'Draft' | 'Sent (Pending PO)' | 'PO Received' | 'DO Issued' | 'Invoice Issued' | 'Paid' | 'Cancelled';
+export type QuotationStatus = 'Draft' | 'Sent (Pending PO)' | 'PO Received' | 'DO Issued' | 'Invoice Issued' | 'Paid' | 'Cancelled' | 'Expired';
 
 export interface LineItem {
   id: string;
@@ -25,6 +25,10 @@ export interface ClientDetails {
 
 export interface Quotation {
   id: string;
+  revisionRootId?: string;
+  revisionOfId?: string;
+  revisionBaseNumber?: string;
+  revisionNumber?: number;
   quoteNumber: string; // e.g. QT-2026-001
   client: ClientDetails;
   date: string;

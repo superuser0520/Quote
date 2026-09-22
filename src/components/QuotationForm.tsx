@@ -56,7 +56,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
 
   const [notes, setNotes] = useState(initialQuotation?.notes || companyProfile.defaultNotes || '');
   const [terms, setTerms] = useState(initialQuotation?.terms || companyProfile.defaultTerms || '');
-  const [status, setStatus] = useState(initialQuotation?.status || 'Sent (Pending PO)');
+  const [status, setStatus] = useState<Quotation['status']>((initialQuotation?.status === 'Expired' ? 'Draft' : initialQuotation?.status) || 'Sent (Pending PO)');
   const [poNumber, setPoNumber] = useState(initialQuotation?.poNumber || '');
   const [poReceivedDate, setPoReceivedDate] = useState(
     initialQuotation?.poReceivedDate || new Date().toISOString().split('T')[0]
@@ -120,12 +120,13 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
     }
 
     const savedQuote: Quotation = {
-      id: initialQuotation?.id || `q-${Date.now()}`,
+      ...initialQuotation,
+      id: initialQuotation?.id || crypto.randomUUID(),
       quoteNumber,
       client,
       date,
       validUntil,
-      items,
+      items: items.map(item => ({...item, total: Number((item.quantity * item.unitPrice * (1 - item.discount / 100) * (1 + item.taxRate / 100)).toFixed(2))})),
       subtotal: Number(subtotal.toFixed(2)),
       discountTotal: Number(discountTotal.toFixed(2)),
       taxTotal: Number(taxTotal.toFixed(2)),
@@ -185,6 +186,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
               <input
                 type="text"
                 value={quoteNumber}
+                readOnly={Boolean(initialQuotation?.revisionNumber)}
                 onChange={(e) => setQuoteNumber(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                 required

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { isLatestQuotation } from '../lib/workflows';
 import { Quotation, DeliveryOrder, Invoice } from '../types';
 import {
   FileText,
@@ -26,8 +27,11 @@ interface DocumentListProps {
   onSelectQuotation: (q: Quotation) => void;
   onNewQuotation: () => void;
   onOpenManualRecord: () => void;
-  onGenerateDO: (q: Quotation) => void;
-  onGenerateInvoice: (q: Quotation) => void;
+  onGenerateDOAndInvoice: (q: Quotation) => void;
+  onReviseQuotation: (q: Quotation) => void;
+  onSelectInvoice: (invoice: Invoice) => void;
+  onSelectDeliveryOrder: (doc: DeliveryOrder) => void;
+  onMarkInvoicePaid: (invoiceId: string) => void;
   onCheckPOInEmail: (q?: Quotation) => void;
   onDeleteQuotation: (q: Quotation) => void;
   onDeleteDeliveryOrder: (deliveryOrder: DeliveryOrder) => void;
@@ -43,8 +47,11 @@ export const DocumentList: React.FC<DocumentListProps> = ({
   onSelectQuotation,
   onNewQuotation,
   onOpenManualRecord,
-  onGenerateDO,
-  onGenerateInvoice,
+  onGenerateDOAndInvoice,
+  onReviseQuotation,
+  onSelectInvoice,
+  onSelectDeliveryOrder,
+  onMarkInvoicePaid,
   onCheckPOInEmail,
   onDeleteQuotation,
   onDeleteDeliveryOrder,
@@ -52,7 +59,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
   onGenerateStatementOfAccount,
   onMarkDeliveryOrderDelivered,
 }) => {
-  const [activeTab, setActiveTab] = useState<'all' | 'quotes' | 'dos' | 'invoices'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'expired' | 'history' | 'dos' | 'invoices'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [soaCustomerKey, setSoaCustomerKey] = useState('');
@@ -68,15 +75,21 @@ export const DocumentList: React.FC<DocumentListProps> = ({
       .entries(),
   ).sort((a, b) => (a[1].client.companyName || a[1].client.name).localeCompare(b[1].client.companyName || b[1].client.name));
 
+  const latestQuotes = quotations.filter(q => isLatestQuotation(quotations, q));
+  const expiredQuotes = latestQuotes.filter(q => q.status === 'Expired');
+  const activeQuotes = latestQuotes.filter(q => q.status !== 'Expired');
+  const historicQuotes = quotations.filter(q => !isLatestQuotation(quotations, q));
+  const tabQuotes = activeTab === 'expired' ? expiredQuotes : activeTab === 'history' ? historicQuotes : activeQuotes;
+
   // Dashboard Stats
-  const pendingQuotes = quotations.filter((q) => q.status === 'Sent (Pending PO)');
+  const pendingQuotes = latestQuotes.filter((q) => q.status === 'Sent (Pending PO)');
   const pendingPOValue = pendingQuotes.reduce((sum, q) => sum + q.grandTotal, 0);
   const poReceivedCount = quotations.filter((q) => q.status === 'PO Received').length;
   const invoicesCount = invoices.length;
-  const totalQuoteValue = quotations.reduce((sum, q) => sum + q.grandTotal, 0);
+  const totalQuoteValue = latestQuotes.reduce((sum, q) => sum + q.grandTotal, 0);
 
   // Filtered Quotations
-  const filteredQuotes = quotations.filter((q) => {
+  const filteredQuotes = tabQuotes.filter((q) => {
     const matchesSearch =
       q.quoteNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       q.client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -112,7 +125,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
             <FileText className="w-5 h-5 text-indigo-600" />
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-bold text-slate-900">{quotations.length}</span>
+            <span className="text-2xl font-bold text-slate-900">{latestQuotes.length}</span>
             <span className="text-xs font-mono font-bold text-slate-600">
               ${totalQuoteValue.toLocaleString(undefined, { minimumFractionDigits: 0 })}
             </span>
@@ -173,14 +186,22 @@ export const DocumentList: React.FC<DocumentListProps> = ({
         {/* Controls Bar */}
         <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* Tab Filters */}
-          <div className="flex items-center gap-1 bg-slate-200/60 p-1 rounded-lg border border-slate-200/80">
+          <div className="flex flex-wrap items-center gap-1 bg-slate-200/60 p-1 rounded-lg border border-slate-200/80">
             <button
               onClick={() => setActiveTab('all')}
               className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${
                 activeTab === 'all' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Quotations ({quotations.length})
+              Quotations ({activeQuotes.length})
+            </button>
+            <button onClick={() => {setActiveTab('expired'); setStatusFilter('all');}}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md ${activeTab === 'expired' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-600'}`}>
+              Expired ({expiredQuotes.length})
+            </button>
+            <button onClick={() => {setActiveTab('history'); setStatusFilter('all');}}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md ${activeTab === 'history' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600'}`}>
+              Earlier versions ({historicQuotes.length})
             </button>
             <button
               onClick={() => setActiveTab('dos')}
@@ -248,6 +269,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
               <option value="DO Issued">DO Issued</option>
               <option value="Invoice Issued">Invoice Issued</option>
               <option value="Paid">Paid</option>
+              <option value="Expired">Expired</option>
             </select>
 
             <button
@@ -262,7 +284,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
         </div>
 
         {/* Table Content */}
-        {activeTab === 'all' || activeTab === 'quotes' ? (
+        {activeTab === 'all' || activeTab === 'expired' || activeTab === 'history' ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
@@ -350,26 +372,13 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                           ) : null}
                         </div>
                       </td>
-                      {/* Quick Convert Buttons */}
                       <td className="py-3.5 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            onClick={() => onGenerateDO(q)}
-                            className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[11px] font-bold transition shadow-2xs"
-                            title="Generate Delivery Order (DO)"
-                          >
-                            <Truck className="w-3 h-3" />
-                            <span>⚡ DO</span>
+                        {isLatestQuotation(quotations, q) && !['Expired', 'Cancelled'].includes(q.status) && (
+                          <button onClick={() => onGenerateDOAndInvoice(q)}
+                            className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold">
+                            {q.invoiceId && q.deliveryOrderId ? 'Email DO + Invoice' : 'Issue & email DO + Invoice'}
                           </button>
-                          <button
-                            onClick={() => onGenerateInvoice(q)}
-                            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-bold transition shadow-2xs"
-                            title="Generate Commercial Invoice"
-                          >
-                            <Receipt className="w-3 h-3" />
-                            <span>⚡ Invoice</span>
-                          </button>
-                        </div>
+                        )}
                       </td>
                       {/* Actions */}
                       <td className="py-3.5 px-4 text-right">
@@ -380,6 +389,11 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                           >
                             <Eye className="w-3.5 h-3.5" />
                             View / Print
+                          </button>
+                          <button
+                            onClick={() => onReviseQuotation(q)}
+                            className="px-3 py-1.5 border border-indigo-200 text-indigo-700 rounded-lg font-bold text-xs">
+                            Revise
                           </button>
                           <button
                             onClick={() => onDeleteQuotation(q)}
@@ -437,7 +451,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                         )}
                       {quotations.find((q) => q.id === doDoc.quotationId) && (
                         <button
-                          onClick={() => onSelectQuotation(quotations.find((q) => q.id === doDoc.quotationId)!)}
+                          onClick={() => onSelectDeliveryOrder(doDoc)}
                           className="px-3 py-1 bg-indigo-600 text-white rounded-lg font-bold text-xs hover:bg-indigo-700 transition"
                         >
                           View DO
@@ -488,9 +502,14 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <div className="inline-flex items-center gap-2">
+                      {inv.status !== 'Paid' && (
+                        <button onClick={() => onMarkInvoicePaid(inv.id)}
+                          aria-label={`Mark ${inv.invoiceNumber} as paid`}
+                          className="px-3 py-1 bg-emerald-600 text-white rounded-lg font-bold text-xs">Mark paid</button>
+                      )}
                       {quotations.find((q) => q.id === inv.quotationId) && (
                         <button
-                          onClick={() => onSelectQuotation(quotations.find((q) => q.id === inv.quotationId)!)}
+                          onClick={() => onSelectInvoice(inv)}
                           className="px-3 py-1 bg-indigo-600 text-white rounded-lg font-bold text-xs hover:bg-indigo-700 transition"
                         >
                           View Invoice

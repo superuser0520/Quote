@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { documentQuotation } from './documentData';
 import { CompanyProfile, DeliveryOrder, Invoice, Quotation } from '../types';
 
 export interface PdfAttachment {
@@ -40,6 +41,7 @@ export function createDocumentPdf(
   if (type === 'do' && !deliveryOrder) throw new Error('Generate the delivery order before downloading its PDF.');
   if (type === 'invoice' && !invoice) throw new Error('Generate the invoice before downloading its PDF.');
 
+  quotation = documentQuotation(type, quotation, deliveryOrder, invoice);
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
   const title = type === 'quotation' ? 'QUOTATION' : type === 'do' ? 'DELIVERY ORDER' : 'INVOICE';
   const documentNumber = type === 'quotation'
@@ -191,10 +193,8 @@ export function createDocumentPdf(
     y += 5;
     pdf.setFont('helvetica', 'normal');
     const paymentLines = lines([
-      'Payment term: 30 days',
-      company.bankName ? `Bank: ${company.bankName}` : undefined,
-      company.bankAccountName ? `Account name: ${company.bankAccountName}` : undefined,
-      company.bankAccountNo ? `Account number: ${company.bankAccountNo}` : undefined,
+      `Payment term: ${invoice!.paymentTerms}`,
+      invoice!.bankDetails,
     ]);
     pdf.text(paymentLines, LEFT, y);
     y += paymentLines.length * 4;

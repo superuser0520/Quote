@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Quotation, DeliveryOrder, Invoice, CompanyProfile } from '../types';
 import { sendGmailDirectly } from '../lib/gmail';
 import { createDocumentPdf } from '../lib/quotationPdf';
+import { documentQuotation } from '../lib/documentData';
 import {
   Mail,
   X,
@@ -29,7 +30,8 @@ interface SendEmailModalProps {
   accessToken?: string | null;
   onLoginRequest?: () => void;
   onMarkAsEmailed?: (q: Quotation) => void;
-  defaultDocType?: 'quotation' | 'do' | 'invoice';
+  defaultDocType?: 'quotation' | 'do' | 'invoice' | 'both';
+  allowQuotation?: boolean;
 }
 
 export const SendEmailModal: React.FC<SendEmailModalProps> = ({
@@ -43,9 +45,11 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
   onLoginRequest,
   onMarkAsEmailed,
   defaultDocType = 'quotation',
+  allowQuotation = true,
 }) => {
-  const [docType, setDocType] = useState<'quotation' | 'do' | 'invoice'>(defaultDocType);
-  const [recipient, setRecipient] = useState(quotation.client.email || '');
+  const [docType, setDocType] = useState<'quotation' | 'do' | 'invoice' | 'both'>(defaultDocType);
+  const sending = useRef(false);
+  const [recipient, setRecipient] = useState((defaultDocType === 'both' || defaultDocType === 'invoice' ? invoice?.client.email : defaultDocType === 'do' ? deliveryOrder?.client.email : quotation.client.email) || '');
   const [ccEmail, setCcEmail] = useState(companyProfile.email || '');
   const [customNote, setCustomNote] = useState('');
   const [copied, setCopied] = useState(false);
@@ -56,19 +60,22 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
 
   useEffect(() => {
     setDocType(defaultDocType);
-    setRecipient(quotation.client.email || '');
+    setRecipient((defaultDocType === 'both' || defaultDocType === 'invoice' ? invoice?.client.email : defaultDocType === 'do' ? deliveryOrder?.client.email : quotation.client.email) || '');
     setCcEmail(companyProfile.email || '');
     setSentNotice(false);
     setCopied(false);
     setIsSending(false);
     setSendSuccess(false);
     setSendError(null);
-  }, [quotation, defaultDocType, companyProfile]);
+  }, [quotation.id, defaultDocType, companyProfile, isOpen]);
 
   if (!isOpen) return null;
 
+  const emailDocument = documentQuotation(docType === 'both' ? 'invoice' : docType, quotation, deliveryOrder, invoice);
+
   // Build Subject
   const getSubject = () => {
+    if (docType === 'both' && deliveryOrder && invoice) return `Delivery Order ${deliveryOrder.doNumber} & Invoice ${invoice.invoiceNumber} from ${companyProfile.name}`;
     if (docType === 'do' && deliveryOrder) {
       return `Delivery Order ${deliveryOrder.doNumber} from ${companyProfile.name} (Ref: ${quotation.quoteNumber})`;
     }
@@ -79,17 +86,33 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
   };
 
   // Build Item Summary Table in Plain Text
-  const itemsText = quotation.items
+  const itemsText = emailDocument.items
     .map(
       (item, idx) =>
-        ` ${idx + 1}. ${item.description}\n    Qty: ${item.quantity} | Unit: ${quotation.currency} ${item.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })} | Total: ${quotation.currency} ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+        ` ${idx + 1}. ${item.description}\n    Qty: ${item.quantity} | Unit: ${emailDocument.currency} ${item.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })} | Total: ${emailDocument.currency} ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     )
     .join('\n\n');
 
   // Build Full Email Body
   const getEmailBody = () => {
-    const clientName = quotation.client.name || 'Valued Customer';
+    const clientName = emailDocument.client.name || 'Valued Customer';
     const compName = companyProfile.name || 'Our Company';
+    if (docType === 'both' && deliveryOrder && invoice) {
+      return `Dear ${invoice.client.name || 'Valued Customer'},
+
+Please find both documents attached for quotation ${invoice.quoteNumber}:
+- Delivery Order ${deliveryOrder.doNumber}, delivery date ${deliveryOrder.deliveryDate}
+- Invoice ${invoice.invoiceNumber}, ${invoice.currency} ${invoice.grandTotal.toFixed(2)}
+Payment due: ${invoice.dueDate}
+Payment terms: ${invoice.paymentTerms}
+Payment details: ${invoice.bankDetails}
+
+${customNote ? customNote + '\n\n' : ''}Please acknowledge delivery and quote the invoice number when making payment.
+
+Best regards,
+${compName}
+${companyProfile.email}`;
+    }
 
     if (docType === 'do' && deliveryOrder) {
       return `Dear ${clientName},
@@ -104,7 +127,7 @@ Delivery Date: ${deliveryOrder.deliveryDate}
 Shipment Address: ${deliveryOrder.deliveryAddress}
 
 ITEMS INCLUDED:
-${quotation.items.map((it, i) => ` ${i + 1}. ${it.description} (Qty: ${it.quantity})`).join('\n')}
+${emailDocument.items.map((it, i) => ` ${i + 1}. ${it.description} (Qty: ${it.quantity})`).join('\n')}
 
 ${customNote ? `SPECIAL NOTE:\n${customNote}\n\n` : ''}Please acknowledge receipt of goods upon delivery.
 
@@ -113,7 +136,7 @@ Best regards,
 ${compName}
 ${companyProfile.phone ? `Phone: ${companyProfile.phone}` : ''}
 ${companyProfile.email ? `Email: ${companyProfile.email}` : ''}
-${companyProfile.website ? `Website: ${companyProfile.website}` : ''}`;
+`;
     }
 
     if (docType === 'invoice' && invoice) {
@@ -160,7 +183,7 @@ ITEMIZED BREAKDOWN:
 ${itemsText}
 
 --------------------------------------------------
-GRAND TOTAL: ${quotation.currency} ${quotation.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+GRAND TOTAL: ${emailDocument.currency} ${quotation.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
 --------------------------------------------------
 
 ${customNote ? `NOTES FROM SENDER:\n${customNote}\n\n` : ''}TERMS & CONDITIONS:
@@ -173,7 +196,7 @@ Warm regards,
 ${compName}
 ${companyProfile.phone ? `Phone: ${companyProfile.phone}` : ''}
 ${companyProfile.email ? `Email: ${companyProfile.email}` : ''}
-${companyProfile.website ? `Website: ${companyProfile.website}` : ''}`;
+`;
   };
 
   const subject = getSubject();
@@ -191,7 +214,7 @@ ${companyProfile.website ? `Website: ${companyProfile.website}` : ''}`;
   };
 
   const handleMarkEmailed = () => {
-    if (onMarkAsEmailed) {
+    if (docType === 'quotation' && onMarkAsEmailed) {
       onMarkAsEmailed(quotation);
     }
     setSentNotice(true);
@@ -202,6 +225,11 @@ ${companyProfile.website ? `Website: ${companyProfile.website}` : ''}`;
   };
 
   const handleSendDirectGmail = async () => {
+    if (sending.current) return;
+    if (docType === 'quotation' && !allowQuotation) {
+      setSendError('Open the latest valid quotation version before sending.');
+      return;
+    }
     if (!recipient) {
       setSendError('Please enter a recipient email address.');
       return;
@@ -217,13 +245,17 @@ ${companyProfile.website ? `Website: ${companyProfile.website}` : ''}`;
     }
 
     try {
+      sending.current = true;
       setIsSending(true);
       setSendError(null);
-      const attachment = createDocumentPdf(docType, quotation, companyProfile, deliveryOrder, invoice);
+      const attachment = docType === 'both'
+        ? [createDocumentPdf('do', quotation, companyProfile, deliveryOrder, invoice),
+           createDocumentPdf('invoice', quotation, companyProfile, deliveryOrder, invoice)]
+        : createDocumentPdf(docType, quotation, companyProfile, deliveryOrder, invoice);
       await sendGmailDirectly(accessToken, recipient, subject, body, ccEmail || undefined, attachment);
 
       setSendSuccess(true);
-      if (onMarkAsEmailed) {
+      if (docType === 'quotation' && onMarkAsEmailed) {
         onMarkAsEmailed(quotation);
       }
       setTimeout(() => {
@@ -233,6 +265,7 @@ ${companyProfile.website ? `Website: ${companyProfile.website}` : ''}`;
       console.error('Direct Gmail error:', err);
       setSendError(err.message || 'Failed to send email via Gmail API.');
     } finally {
+      sending.current = false;
       setIsSending(false);
     }
   };
@@ -254,7 +287,7 @@ ${companyProfile.website ? `Website: ${companyProfile.website}` : ''}`;
                 Client: <span className="text-indigo-300 font-semibold">{quotation.client.name}</span> ({quotation.quoteNumber})
               </p>
               <p className="text-[11px] text-emerald-300 mt-0.5">
-                {docType === 'quotation' ? 'Quotation' : docType === 'do' ? 'Delivery Order' : 'Invoice'} PDF will be attached automatically
+                {docType === 'both' ? 'Delivery Order and Invoice PDFs will both be attached to this email' : (docType === 'quotation' ? 'Quotation' : docType === 'do' ? 'Delivery Order' : 'Invoice') + ' PDF will be attached automatically'}
               </p>
             </div>
           </div>
@@ -309,10 +342,15 @@ ${companyProfile.website ? `Website: ${companyProfile.website}` : ''}`;
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
               Select Document to Send:
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setDocType('both')} disabled={!deliveryOrder || !invoice}
+                className={`py-2 px-3 rounded-lg text-xs font-bold border disabled:opacity-40 ${docType === 'both' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-slate-200'}`}>
+                DO + Invoice (2 PDFs)
+              </button>
               <button
                 type="button"
                 onClick={() => setDocType('quotation')}
+                disabled={!allowQuotation}
                 className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border transition ${
                   docType === 'quotation'
                     ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-xs'
@@ -441,23 +479,23 @@ ${companyProfile.website ? `Website: ${companyProfile.website}` : ''}`;
           <button
             type="button"
             onClick={handleMarkEmailed}
+            disabled={docType !== 'quotation' || isSending}
             className="w-full sm:w-auto text-xs font-bold text-slate-600 hover:text-slate-900 border border-slate-300 bg-white hover:bg-slate-100 px-3.5 py-2 rounded-lg transition"
           >
             {sentNotice ? '✓ Marked as Emailed' : 'Mark Status as Sent'}
           </button>
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            <a
+            {docType !== 'both' && <a
               href={mailtoUrl}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={handleMarkEmailed}
               className="px-3.5 py-2 border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5"
               title="Open desktop mail app (e.g. Outlook/Apple Mail)"
             >
               <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
               <span>Mailto Link</span>
-            </a>
+            </a>}
 
             {accessToken ? (
               <button
@@ -479,7 +517,7 @@ ${companyProfile.website ? `Website: ${companyProfile.website}` : ''}`;
                 ) : (
                   <>
                     <Send className="w-4 h-4" />
-                    <span>⚡ Direct Send via Gmail</span>
+                    <span>{docType === 'both' ? 'Send DO + Invoice together' : 'Send via Gmail'}</span>
                   </>
                 )}
               </button>

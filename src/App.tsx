@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Quotation,
   DeliveryOrder,
@@ -9,17 +9,15 @@ import {
 } from './types';
 import {
   loadQuotations,
-  saveQuotations,
   loadDeliveryOrders,
-  saveDeliveryOrders,
   loadInvoices,
-  saveInvoices,
   loadCompanyProfile,
-  saveCompanyProfile,
 } from './lib/storage';
-import { fetchServerDatabase, saveServerDatabase } from './lib/dbClient';
+import { fetchServerDatabase, saveServerDatabase, cacheDatabase, pendingDatabase, DatabaseState } from './lib/dbClient';
+import { effectiveQuotation, localDate, issueDocumentPair, markInvoicePaid, reviseQuotation, quotationVersions, isLatestQuotation } from './lib/workflows';
+import { SendEmailModal } from './components/SendEmailModal';
 import { outstandingInvoicesForCustomer } from './lib/statementOfAccountPdf';
-import { initAuth, googleSignIn, logout, getAccessToken } from './lib/firebase';
+import { initAuth, googleSignIn, logout } from './lib/firebase';
 
 import { Header } from './components/Header';
 import { DocumentList } from './components/DocumentList';
@@ -41,14 +39,24 @@ export default function App() {
   const [needsAuth, setNeedsAuth] = useState(false);
 
   // App data state
-  const [quotations, setQuotations] = useState<Quotation[]>([]);
+  const [storedQuotations, setQuotations] = useState<Quotation[]>([]);
+  const [today, setToday] = useState(localDate);
+  const quotations = useMemo(() => storedQuotations.map(q => effectiveQuotation(q, today)), [storedQuotations, today]);
   const [deliveryOrders, setDeliveryOrders] = useState<DeliveryOrder[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(loadCompanyProfile());
 
   // Navigation & view state
   const [view, setView] = useState<'list' | 'analytics' | 'create' | 'edit' | 'preview'>('list');
-  const [selectedQuote, setSelectedQuote] = useState<Quotation | null>(null);
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+  const selectedQuote = quotations.find(q => q.id === selectedQuoteId) || null;
+  const setSelectedQuote = (q: Quotation | null) => setSelectedQuoteId(q?.id || null);
+  const [selectedDocument, setSelectedDocument] = useState<{type: 'quotation' | 'do' | 'invoice'; id?: string}>({type: 'quotation'});
+  const [pairEmail, setPairEmail] = useState<{quoteId: string; doId: string; invoiceId: string} | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'loading' | 'saving' | 'saved' | 'error'>('loading');
+  const currentDatabase = useRef<DatabaseState>({quotations: [], deliveryOrders: [], invoices: [], companyProfile});
+  const mutationVersion = useRef(0);
+  const issuing = useRef(false);
 
   // Modal open states
   const [isPOCheckerOpen, setIsPOCheckerOpen] = useState(false);
@@ -65,60 +73,62 @@ export default function App() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // Sync state to Raspberry Pi database & browser storage
+  const applyDatabase = (db: DatabaseState) => {
+    currentDatabase.current = db;
+    setQuotations(db.quotations);
+    setDeliveryOrders(db.deliveryOrders);
+    setInvoices(db.invoices);
+    setCompanyProfile(db.companyProfile);
+  };
+
   const syncAndSaveData = (
-    quotes = quotations,
-    dos = deliveryOrders,
-    invs = invoices,
-    prof = companyProfile
+    quotes = currentDatabase.current.quotations,
+    dos = currentDatabase.current.deliveryOrders,
+    invs = currentDatabase.current.invoices,
+    prof = currentDatabase.current.companyProfile
   ) => {
-    saveServerDatabase({
-      quotations: quotes,
-      deliveryOrders: dos,
-      invoices: invs,
-      companyProfile: prof,
+    const db = {quotations: quotes, deliveryOrders: dos, invoices: invs, companyProfile: prof};
+    applyDatabase(db);
+    const version = ++mutationVersion.current;
+    setSaveStatus('saving');
+    return saveServerDatabase(db).then(saved => {
+      if (mutationVersion.current === version) setSaveStatus(saved ? 'saved' : 'error');
+      return saved;
     });
   };
 
-  // Initialize data on mount - load from Raspberry Pi Server DB or fallback to LocalStorage
   useEffect(() => {
-    // 1. Initial fallback load from local storage
-    const initialQuotes = loadQuotations();
-    const initialDOs = loadDeliveryOrders();
-    const initialInvoices = loadInvoices();
-    const initialProf = loadCompanyProfile();
-
-    setQuotations(initialQuotes);
-    setDeliveryOrders(initialDOs);
-    setInvoices(initialInvoices);
-    setCompanyProfile(initialProf);
-
-    // 2. Fetch latest data from Raspberry Pi server backend DB
-    fetchServerDatabase().then((db) => {
-      if (db) {
-        setQuotations(db.quotations);
-        setDeliveryOrders(db.deliveryOrders);
-        setInvoices(db.invoices);
-        setCompanyProfile(db.companyProfile);
-        // Persist any one-time company-profile migration back to the Pi DB.
-        saveServerDatabase(db);
-        showToast('Connected & synced with Raspberry Pi Database!', 'info');
-      }
-    });
-
-    // Firebase Auth listener
+    let cancelled = false;
+    const initial = pendingDatabase() || {
+      quotations: loadQuotations(), deliveryOrders: loadDeliveryOrders(),
+      invoices: loadInvoices(), companyProfile: loadCompanyProfile(),
+    };
+    applyDatabase(initial);
+    const version = mutationVersion.current;
+    if (pendingDatabase()) {
+      setSaveStatus('error');
+    } else {
+      fetchServerDatabase().then(db => {
+        if (cancelled || mutationVersion.current !== version) return;
+        if (db) {
+          applyDatabase(db);
+          try { cacheDatabase(db); } catch { /* Server state is already loaded. */ }
+        }
+        setSaveStatus(db ? 'saved' : 'error');
+      });
+    }
     const unsubscribe = initAuth(
-      (currentUser, token) => {
-        setUser(currentUser);
-        setAccessToken(token);
-        setNeedsAuth(false);
-      },
-      () => {
-        setNeedsAuth(true);
-      }
+      (currentUser, token) => {setUser(currentUser); setAccessToken(token); setNeedsAuth(false);},
+      () => setNeedsAuth(true)
     );
+    return () => { cancelled = true; unsubscribe(); };
+  }, []);
 
-    return () => unsubscribe();
+  useEffect(() => {
+    const refreshDate = () => setToday(localDate());
+    const timer = window.setInterval(refreshDate, 30000);
+    window.addEventListener('focus', refreshDate);
+    return () => {window.clearInterval(timer); window.removeEventListener('focus', refreshDate);};
   }, []);
 
   // Google Login Handler
@@ -164,19 +174,19 @@ export default function App() {
     }
 
     setQuotations(updatedQuotes);
-    saveQuotations(updatedQuotes);
+
     syncAndSaveData(updatedQuotes);
 
     setSelectedQuote(quote);
     setView('preview');
-    showToast(`Quotation ${quote.quoteNumber} saved & synced to Pi DB!`);
+    showToast(`Quotation ${quote.quoteNumber} saved.`);
   };
 
   // Manual Add Handlers
   const handleAddManualQuotation = (newQuote: Quotation) => {
     const updated = [newQuote, ...quotations];
     setQuotations(updated);
-    saveQuotations(updated);
+
     syncAndSaveData(updated);
     setSelectedQuote(newQuote);
     setView('preview');
@@ -190,8 +200,8 @@ export default function App() {
       : quote);
     setDeliveryOrders(updated);
     setQuotations(updatedQuotes);
-    saveDeliveryOrders(updated);
-    saveQuotations(updatedQuotes);
+
+
     syncAndSaveData(updatedQuotes, updated);
     setView('list');
     showToast(`Manual Delivery Order ${newDO.doNumber} registered!`);
@@ -200,12 +210,12 @@ export default function App() {
   const handleAddManualInvoice = (newInv: Invoice) => {
     const updated = [newInv, ...invoices];
     const updatedQuotes = quotations.map((quote) => quote.id === newInv.quotationId
-      ? { ...quote, invoiceId: newInv.id, invoiceNumber: newInv.invoiceNumber, poNumber: newInv.poNumber || quote.poNumber, status: newInv.status === 'Paid' ? 'Paid' as const : 'Invoice Issued' as const, updatedAt: new Date().toISOString() }
+      ? { ...quote, invoiceId: newInv.id, invoiceNumber: newInv.invoiceNumber, poNumber: newInv.poNumber || quote.poNumber, status: updated.filter(inv => inv.quotationId === quote.id).every(inv => inv.status === 'Paid') ? 'Paid' as const : 'Invoice Issued' as const, updatedAt: new Date().toISOString() }
       : quote);
     setInvoices(updated);
     setQuotations(updatedQuotes);
-    saveInvoices(updated);
-    saveQuotations(updatedQuotes);
+
+
     syncAndSaveData(updatedQuotes, deliveryOrders, updated);
     setView('list');
     showToast(`Manual Invoice ${newInv.invoiceNumber} registered!`);
@@ -234,9 +244,9 @@ export default function App() {
     setQuotations(updatedQuotes);
     setDeliveryOrders(updatedDOs);
     setInvoices(updatedInvoices);
-    saveQuotations(updatedQuotes);
-    saveDeliveryOrders(updatedDOs);
-    saveInvoices(updatedInvoices);
+
+
+
     syncAndSaveData(updatedQuotes, updatedDOs, updatedInvoices);
     showToast(`Quotation ${quote.quoteNumber} deleted.`, 'info');
   };
@@ -245,7 +255,7 @@ export default function App() {
     if (!window.confirm(`Delete delivery order ${deliveryOrder.doNumber}? This cannot be undone.`)) return;
     const updatedDOs = deliveryOrders.filter((item) => item.id !== deliveryOrder.id);
     setDeliveryOrders(updatedDOs);
-    saveDeliveryOrders(updatedDOs);
+
     syncAndSaveData(quotations, updatedDOs, invoices);
     showToast(`Delivery order ${deliveryOrder.doNumber} deleted.`, 'info');
   };
@@ -254,7 +264,7 @@ export default function App() {
     if (!window.confirm(`Delete invoice ${invoice.invoiceNumber}? This cannot be undone.`)) return;
     const updatedInvoices = invoices.filter((item) => item.id !== invoice.id);
     setInvoices(updatedInvoices);
-    saveInvoices(updatedInvoices);
+
     syncAndSaveData(quotations, deliveryOrders, updatedInvoices);
     showToast(`Invoice ${invoice.invoiceNumber} deleted.`, 'info');
   };
@@ -267,227 +277,47 @@ export default function App() {
         : item
     );
     setDeliveryOrders(updatedDOs);
-    saveDeliveryOrders(updatedDOs);
+
     syncAndSaveData(quotations, updatedDOs, invoices);
     showToast(`Delivery order ${deliveryOrder.doNumber} marked as delivered.`);
   };
 
-  // Quick Convert: Generate Delivery Order (DO)
-  const handleGenerateDO = (q: Quotation) => {
-    const existingDO = deliveryOrders.find((d) => d.quotationId === q.id);
-    let targetDO: DeliveryOrder;
-
-    if (existingDO) {
-      targetDO = existingDO;
-    } else {
-      const newDONumber = `DO-2026-${Math.floor(100 + Math.random() * 900)}`;
-      targetDO = {
-        id: `do-${Date.now()}`,
-        doNumber: newDONumber,
-        quotationId: q.id,
-        quoteNumber: q.quoteNumber,
-        client: q.client,
-        deliveryDate: new Date().toISOString().split('T')[0],
-        deliveryAddress: q.client.address,
-        items: q.items.map((item) => ({
-          id: item.id,
-          description: item.description,
-          quantity: item.quantity,
-          notes: 'Standard Delivery Item',
-        })),
-        status: 'Pending Delivery',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      const updatedDOs = [targetDO, ...deliveryOrders];
-      setDeliveryOrders(updatedDOs);
-      saveDeliveryOrders(updatedDOs);
-
-      // Update Quotation Status if needed
-      const updatedQ: Quotation = {
-        ...q,
-        deliveryOrderId: targetDO.id,
-        deliveryOrderNumber: targetDO.doNumber,
-        status: q.status === 'Sent (Pending PO)' ? 'DO Issued' : q.status,
-        updatedAt: new Date().toISOString(),
-      };
-
-      const updatedQuotes = quotations.map((item) => (item.id === q.id ? updatedQ : item));
-      setQuotations(updatedQuotes);
-      saveQuotations(updatedQuotes);
-      setSelectedQuote(updatedQ);
-
-      syncAndSaveData(updatedQuotes, updatedDOs);
-      showToast(`Generated Delivery Order ${newDONumber} for ${q.quoteNumber}!`);
-    }
-
-    setSelectedQuote(q);
-    setView('preview');
+  const handleGenerateDOAndInvoice = async (q: Quotation) => {
+    if (issuing.current) return;
+    issuing.current = true;
+    try {
+      const result = issueDocumentPair(currentDatabase.current, q.id);
+      const saved = await syncAndSaveData(result.state.quotations, result.state.deliveryOrders, result.state.invoices);
+      setSelectedQuote(result.quotation);
+      setSelectedDocument({type: 'invoice', id: result.invoice.id});
+      setView('preview');
+      if (saved) {
+        setPairEmail({quoteId: result.quotation.id, doId: result.deliveryOrder.id, invoiceId: result.invoice.id});
+      } else {
+        showToast('Documents are prepared, but the server save failed. Retry saving before sending.', 'info');
+      }
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to issue documents.', 'info'); }
+    finally { issuing.current = false; }
   };
 
-  // Quick Convert: Generate Invoice from Quotation
-  const handleGenerateInvoice = (q: Quotation) => {
-    const existingInv = invoices.find((inv) => inv.quotationId === q.id);
-    let targetInv: Invoice;
-
-    if (existingInv) {
-      targetInv = existingInv;
-    } else {
-      const newInvNumber = `INV-2026-${Math.floor(100 + Math.random() * 900)}`;
-      targetInv = {
-        id: `inv-${Date.now()}`,
-        invoiceNumber: newInvNumber,
-        quotationId: q.id,
-        quoteNumber: q.quoteNumber,
-        poNumber: q.poNumber,
-        client: q.client,
-        date: new Date().toISOString().split('T')[0],
-        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        items: q.items,
-        subtotal: q.subtotal,
-        taxTotal: q.taxTotal,
-        discountTotal: q.discountTotal,
-        grandTotal: q.grandTotal,
-        currency: q.currency,
-        paymentTerms: '30 days',
-        bankDetails: `${companyProfile.bankName} | Acc: ${companyProfile.bankAccountNo}`,
-        status: 'Unpaid',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      const updatedInvoices = [targetInv, ...invoices];
-      setInvoices(updatedInvoices);
-      saveInvoices(updatedInvoices);
-
-      const updatedQ: Quotation = {
-        ...q,
-        invoiceId: targetInv.id,
-        invoiceNumber: targetInv.invoiceNumber,
-        status: 'Invoice Issued',
-        updatedAt: new Date().toISOString(),
-      };
-
-      const updatedQuotes = quotations.map((item) => (item.id === q.id ? updatedQ : item));
-      setQuotations(updatedQuotes);
-      saveQuotations(updatedQuotes);
-      setSelectedQuote(updatedQ);
-
-      syncAndSaveData(updatedQuotes, deliveryOrders, updatedInvoices);
-      showToast(`Generated Invoice ${newInvNumber} for ${q.quoteNumber}!`);
-    }
-
-    setSelectedQuote(q);
-    setView('preview');
+  const handleMarkAsPaid = (invoiceId: string) => {
+    try {
+      const updated = markInvoicePaid(currentDatabase.current, invoiceId);
+      syncAndSaveData(updated.quotations, updated.deliveryOrders, updated.invoices);
+      const invoice = updated.invoices.find(item => item.id === invoiceId)!;
+      showToast('Payment recorded for ' + invoice.invoiceNumber + '.');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to record payment.', 'info'); }
   };
 
-  // Quick Convert: Generate DO & Invoice Together
-  const handleGenerateDOAndInvoice = (q: Quotation) => {
-    let targetDO = deliveryOrders.find((d) => d.quotationId === q.id);
-    let updatedDOs = [...deliveryOrders];
-    if (!targetDO) {
-      const newDONumber = `DO-2026-${Math.floor(100 + Math.random() * 900)}`;
-      targetDO = {
-        id: `do-${Date.now()}`,
-        doNumber: newDONumber,
-        quotationId: q.id,
-        quoteNumber: q.quoteNumber,
-        client: q.client,
-        deliveryDate: new Date().toISOString().split('T')[0],
-        deliveryAddress: q.client.address,
-        items: q.items.map((item) => ({
-          id: item.id,
-          description: item.description,
-          quantity: item.quantity,
-          notes: item.notes || item.remark || 'Standard Delivery Item',
-        })),
-        status: 'Pending Delivery',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      updatedDOs = [targetDO, ...deliveryOrders];
-      setDeliveryOrders(updatedDOs);
-      saveDeliveryOrders(updatedDOs);
-    }
-
-    let targetInv = invoices.find((inv) => inv.quotationId === q.id);
-    let updatedInvoices = [...invoices];
-    if (!targetInv) {
-      const newInvNumber = `INV-2026-${Math.floor(100 + Math.random() * 900)}`;
-      targetInv = {
-        id: `inv-${Date.now()}`,
-        invoiceNumber: newInvNumber,
-        quotationId: q.id,
-        quoteNumber: q.quoteNumber,
-        poNumber: q.poNumber,
-        client: q.client,
-        date: new Date().toISOString().split('T')[0],
-        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        items: q.items,
-        subtotal: q.subtotal,
-        taxTotal: q.taxTotal,
-        discountTotal: q.discountTotal,
-        grandTotal: q.grandTotal,
-        currency: q.currency,
-        paymentTerms: '30 days',
-        bankDetails: `${companyProfile.bankName} | Acc: ${companyProfile.bankAccountNo}`,
-        status: 'Unpaid',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      updatedInvoices = [targetInv, ...invoices];
-      setInvoices(updatedInvoices);
-      saveInvoices(updatedInvoices);
-    }
-
-    const updatedQ: Quotation = {
-      ...q,
-      deliveryOrderId: targetDO.id,
-      deliveryOrderNumber: targetDO.doNumber,
-      invoiceId: targetInv.id,
-      invoiceNumber: targetInv.invoiceNumber,
-      status: 'Invoice Issued',
-      updatedAt: new Date().toISOString(),
-    };
-
-    const updatedQuotes = quotations.map((item) => (item.id === q.id ? updatedQ : item));
-    setQuotations(updatedQuotes);
-    saveQuotations(updatedQuotes);
-    setSelectedQuote(updatedQ);
-
-    showToast(`Generated DO (${targetDO.doNumber}) & Invoice (${targetInv.invoiceNumber}) together!`);
-    setView('preview');
-  };
-
-  // Mark Payment Received / Paid
-  const handleMarkAsPaid = (q: Quotation) => {
-    // Update linked invoice status
-    let updatedInvoices = [...invoices];
-    const linkedInv = invoices.find((inv) => inv.quotationId === q.id || inv.id === q.invoiceId);
-    if (linkedInv) {
-      updatedInvoices = invoices.map((inv) =>
-        inv.id === linkedInv.id
-          ? { ...inv, status: 'Paid', paidAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
-          : inv
-      );
-      setInvoices(updatedInvoices);
-      saveInvoices(updatedInvoices);
-    }
-
-    // Update quotation status
-    const updatedQ: Quotation = {
-      ...q,
-      status: 'Paid',
-      updatedAt: new Date().toISOString(),
-    };
-
-    const updatedQuotes = quotations.map((item) => (item.id === q.id ? updatedQ : item));
-    setQuotations(updatedQuotes);
-    saveQuotations(updatedQuotes);
-    setSelectedQuote(updatedQ);
-
-    showToast(`Payment received for ${q.quoteNumber}! Marked as PAID.`, 'success');
+  const handleReviseQuotation = (q: Quotation) => {
+    try {
+      const result = reviseQuotation(currentDatabase.current, q.id);
+      syncAndSaveData(result.state.quotations);
+      setSelectedQuote(result.quotation);
+      setSelectedDocument({type: 'quotation'});
+      setView('edit');
+      showToast('Created draft revision ' + result.quotation.quoteNumber + '. Earlier versions are preserved.');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Unable to revise quotation.', 'info'); }
   };
 
   // Direct Status Update (Pending PO / PO Received / Cancelled)
@@ -501,9 +331,10 @@ export default function App() {
 
     const updatedQuotes = quotations.map((item) => (item.id === q.id ? updatedQ : item));
     setQuotations(updatedQuotes);
-    saveQuotations(updatedQuotes);
+
     setSelectedQuote(updatedQ);
 
+    syncAndSaveData(updatedQuotes);
     showToast(`Status updated to "${status}" for ${q.quoteNumber}`);
   };
 
@@ -527,25 +358,26 @@ export default function App() {
 
     const updatedQuotes = quotations.map((q) => (q.id === quote.id ? updatedQ : q));
     setQuotations(updatedQuotes);
-    saveQuotations(updatedQuotes);
+
 
     if (selectedQuote?.id === quote.id) {
       setSelectedQuote(updatedQ);
     }
 
+    syncAndSaveData(updatedQuotes);
     showToast(`PO ${poNumber} linked to Quote ${quote.quoteNumber}! Status updated to PO Received.`);
   };
 
   // Company profile save
   const handleSaveCompanyProfile = (prof: CompanyProfile) => {
     setCompanyProfile(prof);
-    saveCompanyProfile(prof);
+
     syncAndSaveData(quotations, deliveryOrders, invoices, prof);
-    showToast('Company profile saved to the Raspberry Pi database!');
+    showToast('Company profile updated.');
   };
 
   // Filter pending PO count
-  const pendingPOCount = quotations.filter((q) => q.status === 'Sent (Pending PO)').length;
+  const pendingPOCount = quotations.filter((q) => q.status === 'Sent (Pending PO)' && isLatestQuotation(quotations, q)).length;
   // Build a reusable customer database from every persisted document type.
   // Email is the strongest identity; company/contact names cover records without email.
   const savedClients: ClientDetails[] = Array.from<ClientDetails>(
@@ -567,13 +399,12 @@ export default function App() {
     }, new Map<string, ClientDetails>()).values()
   ).sort((a, b) => (a.companyName || a.name).localeCompare(b.companyName || b.name));
 
-  // Active delivery order & invoice for preview
-  const activeDO = selectedQuote
-    ? deliveryOrders.find((d) => d.quotationId === selectedQuote.id)
-    : null;
-  const activeInvoice = selectedQuote
-    ? invoices.find((inv) => inv.quotationId === selectedQuote.id)
-    : null;
+  const linkedDOs = selectedQuote ? deliveryOrders.filter(d => d.quotationId === selectedQuote.id) : [];
+  const linkedInvoices = selectedQuote ? invoices.filter(inv => inv.quotationId === selectedQuote.id) : [];
+  const activeDO = linkedDOs.find(d => selectedDocument.type === 'do' && d.id === selectedDocument.id)
+    || (linkedDOs.length === 1 ? linkedDOs[0] : null);
+  const activeInvoice = linkedInvoices.find(inv => selectedDocument.type === 'invoice' && inv.id === selectedDocument.id)
+    || (linkedInvoices.length === 1 ? linkedInvoices[0] : null);
 
   const handleImportDatabase = (imported: {
     quotations?: Quotation[];
@@ -583,21 +414,23 @@ export default function App() {
   }) => {
     if (imported.quotations) {
       setQuotations(imported.quotations);
-      saveQuotations(imported.quotations);
+
     }
     if (imported.deliveryOrders) {
       setDeliveryOrders(imported.deliveryOrders);
-      saveDeliveryOrders(imported.deliveryOrders);
+
     }
     if (imported.invoices) {
       setInvoices(imported.invoices);
-      saveInvoices(imported.invoices);
+
     }
     if (imported.companyProfile) {
       setCompanyProfile(imported.companyProfile);
-      saveCompanyProfile(imported.companyProfile);
+
     }
-    showToast('Database imported successfully!');
+    const merged = {...currentDatabase.current, ...Object.fromEntries(Object.entries(imported).filter(([, value]) => value !== undefined))};
+    syncAndSaveData(merged.quotations, merged.deliveryOrders, merged.invoices, merged.companyProfile);
+    showToast('Database imported.');
   };
 
   return (
@@ -629,8 +462,13 @@ export default function App() {
         pendingPOCount={pendingPOCount}
       />
 
+      <div role="status" className="px-6 py-2 text-xs bg-slate-100 text-slate-700">
+        {saveStatus === 'loading' ? 'Loading saved records…' : saveStatus === 'saving' ? 'Saving changes…' : saveStatus === 'saved' ? 'All changes saved to server.' : 'Server save is unavailable. Keep this page open or retry saving; any browser backup is retained.'}
+        {saveStatus === 'error' && <button className="ml-3 underline font-bold" onClick={() => syncAndSaveData()}>Retry save</button>}
+      </div>
+
       {/* Main View Area */}
-      <main className="flex-1 pb-12">
+      <main className="flex-1 pb-12" inert={saveStatus === 'loading'}>
         {view === 'list' && (
           <DocumentList
             quotations={quotations}
@@ -638,6 +476,7 @@ export default function App() {
             invoices={invoices}
             onSelectQuotation={(q) => {
               setSelectedQuote(q);
+              setSelectedDocument({type: 'quotation'});
               setView('preview');
             }}
             onNewQuotation={() => {
@@ -645,8 +484,19 @@ export default function App() {
               setView('create');
             }}
             onOpenManualRecord={() => setIsManualRecordOpen(true)}
-            onGenerateDO={handleGenerateDO}
-            onGenerateInvoice={handleGenerateInvoice}
+            onGenerateDOAndInvoice={handleGenerateDOAndInvoice}
+            onMarkInvoicePaid={handleMarkAsPaid}
+            onReviseQuotation={handleReviseQuotation}
+            onSelectInvoice={(inv) => {
+              setSelectedQuoteId(inv.quotationId);
+              setSelectedDocument({type: 'invoice', id: inv.id});
+              setView('preview');
+            }}
+            onSelectDeliveryOrder={(doc) => {
+              setSelectedQuoteId(doc.quotationId);
+              setSelectedDocument({type: 'do', id: doc.id});
+              setView('preview');
+            }}
             onCheckPOInEmail={(q) => {
               if (q) setSelectedQuote(q);
               setIsPOCheckerOpen(true);
@@ -697,15 +547,15 @@ export default function App() {
             companyProfile={companyProfile}
             accessToken={accessToken}
             onLoginRequest={handleLogin}
-            onGenerateDO={handleGenerateDO}
-            onGenerateInvoice={handleGenerateInvoice}
+            key={selectedQuote.id + selectedDocument.type + (selectedDocument.id || '')}
+            initialTab={selectedDocument.type}
+            versions={quotationVersions(quotations, selectedQuote)}
+            isLatestVersion={isLatestQuotation(quotations, selectedQuote)}
+            onSelectVersion={(q) => {setSelectedQuote(q); setSelectedDocument({type: 'quotation'});}}
             onGenerateDOAndInvoice={handleGenerateDOAndInvoice}
             onMarkAsPaid={handleMarkAsPaid}
             onUpdateStatus={handleUpdateQuotationStatus}
-            onEditQuotation={(q) => {
-              setSelectedQuote(q);
-              setView('edit');
-            }}
+            onEditQuotation={handleReviseQuotation}
             onBack={() => setView('list')}
             onCheckPOInEmail={() => setIsPOCheckerOpen(true)}
           />
@@ -738,12 +588,23 @@ export default function App() {
         </div>
       </footer>
 
+      {pairEmail && (() => {
+        const quote = quotations.find(q => q.id === pairEmail.quoteId);
+        const deliveryOrder = deliveryOrders.find(d => d.id === pairEmail.doId);
+        const invoice = invoices.find(i => i.id === pairEmail.invoiceId);
+        return quote && deliveryOrder && invoice ? <SendEmailModal
+          isOpen onClose={() => setPairEmail(null)} quotation={quote}
+          deliveryOrder={deliveryOrder} invoice={invoice} companyProfile={companyProfile}
+          accessToken={accessToken} onLoginRequest={handleLogin} defaultDocType="both"
+        /> : null;
+      })()}
+
       {/* Modals */}
       <POEmailCheckerModal
         isOpen={isPOCheckerOpen}
         onClose={() => setIsPOCheckerOpen(false)}
         accessToken={accessToken}
-        pendingQuotes={quotations.filter((q) => q.status === 'Sent (Pending PO)')}
+        pendingQuotes={quotations.filter((q) => q.status === 'Sent (Pending PO)' && isLatestQuotation(quotations, q))}
         onConfirmPO={handleConfirmPOFromEmail}
         onLoginRequest={handleLogin}
       />

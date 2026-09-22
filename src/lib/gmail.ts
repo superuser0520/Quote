@@ -19,7 +19,9 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-function createMimeMessage(to: string, subject: string, bodyText: string, cc?: string, attachment?: GmailAttachment): string {
+function createMimeMessage(to: string, subject: string, bodyText: string, cc?: string, attachment?: GmailAttachment | GmailAttachment[]): string {
+  if (/[\r\n]/.test(to + (cc || ''))) throw new Error('Invalid email address.');
+  const attachments = attachment ? (Array.isArray(attachment) ? attachment : [attachment]) : [];
   const nl = '\r\n';
   const boundary = `quotexpress-${Date.now()}`;
   const headers = [
@@ -27,25 +29,22 @@ function createMimeMessage(to: string, subject: string, bodyText: string, cc?: s
     cc ? `Cc: ${cc}` : '',
     `Subject: =?utf-8?B?${bytesToBase64(new TextEncoder().encode(subject))}?=`,
     `MIME-Version: 1.0`,
-    attachment ? `Content-Type: multipart/mixed; boundary="${boundary}"` : `Content-Type: text/plain; charset=utf-8`,
+    attachments.length ? `Content-Type: multipart/mixed; boundary="${boundary}"` : `Content-Type: text/plain; charset=utf-8`,
   ].filter(Boolean);
 
   let content = bodyText;
-  if (attachment) {
-    const attachmentBase64 = bytesToBase64(attachment.data).match(/.{1,76}/g)?.join(nl) || '';
+  if (attachments.length) {
     content = [
       `--${boundary}`,
       'Content-Type: text/plain; charset=utf-8',
-      'Content-Transfer-Encoding: 8bit',
-      '',
-      bodyText,
-      '',
-      `--${boundary}`,
-      `Content-Type: ${attachment.mimeType}; name="${attachment.filename}"`,
-      'Content-Transfer-Encoding: base64',
-      `Content-Disposition: attachment; filename="${attachment.filename}"`,
-      '',
-      attachmentBase64,
+      'Content-Transfer-Encoding: 8bit', '', bodyText, '',
+      ...attachments.flatMap(file => [
+        `--${boundary}`,
+        `Content-Type: ${file.mimeType}; name="${file.filename}"`,
+        'Content-Transfer-Encoding: base64',
+        `Content-Disposition: attachment; filename="${file.filename}"`, '',
+        bytesToBase64(file.data).match(/.{1,76}/g)?.join(nl) || '',
+      ]),
       `--${boundary}--`,
     ].join(nl);
   }
@@ -74,7 +73,7 @@ export async function sendGmailDirectly(
   subject: string,
   bodyText: string,
   cc?: string,
-  attachment?: GmailAttachment
+  attachment?: GmailAttachment | GmailAttachment[]
 ): Promise<{ id: string; threadId: string }> {
   if (!accessToken) {
     throw new Error('Not authenticated with Google. Please log in with Google to send emails directly.');

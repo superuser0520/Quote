@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Quotation, DeliveryOrder, Invoice, CompanyProfile, QuotationStatus } from '../types';
+import { documentQuotation } from '../lib/documentData';
 import { numberToWords } from '../lib/numberToWords';
 import { SendEmailModal } from './SendEmailModal';
 import { createDocumentPdf } from '../lib/quotationPdf';
@@ -32,10 +33,12 @@ interface DocumentPreviewProps {
   companyProfile: CompanyProfile;
   accessToken?: string | null;
   onLoginRequest?: () => void;
-  onGenerateDO: (quotation: Quotation) => void;
-  onGenerateInvoice: (quotation: Quotation) => void;
+  initialTab?: 'quotation' | 'do' | 'invoice';
+  versions: Quotation[];
+  isLatestVersion: boolean;
+  onSelectVersion: (quotation: Quotation) => void;
   onGenerateDOAndInvoice: (quotation: Quotation) => void;
-  onMarkAsPaid: (quotation: Quotation) => void;
+  onMarkAsPaid: (invoiceId: string) => void;
   onUpdateStatus: (quotation: Quotation, status: QuotationStatus, poNumber?: string) => void;
   onEditQuotation: (quotation: Quotation) => void;
   onBack: () => void;
@@ -49,8 +52,10 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   companyProfile,
   accessToken,
   onLoginRequest,
-  onGenerateDO,
-  onGenerateInvoice,
+  initialTab = 'quotation',
+  versions,
+  isLatestVersion,
+  onSelectVersion,
   onGenerateDOAndInvoice,
   onMarkAsPaid,
   onUpdateStatus,
@@ -58,26 +63,28 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   onBack,
   onCheckPOInEmail,
 }) => {
-  const [activeTab, setActiveTab] = useState<'quotation' | 'do' | 'invoice'>('quotation');
+  const [activeTab, setActiveTab] = useState<'quotation' | 'do' | 'invoice'>(initialTab);
   const [poInput, setPoInput] = useState('');
   const [showPoModal, setShowPoModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
 
+  const displayQuotation = documentQuotation(activeTab, quotation, deliveryOrder, invoice);
+
   // Payment Overdue Calculation
   const isInvoiceOverdue = useMemo(() => {
-    if (quotation.status === 'Paid' || invoice?.status === 'Paid') return false;
-    const dueDateStr = invoice?.dueDate || quotation.validUntil;
+    if (!invoice || invoice.status === 'Paid') return false;
+    const dueDateStr = invoice?.dueDate;
     if (!dueDateStr) return false;
-    const dueDate = new Date(dueDateStr);
+    const dueDate = new Date(dueDateStr + 'T00:00:00');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return today > dueDate;
   }, [invoice, quotation]);
 
   const daysOverdue = useMemo(() => {
-    const dueDateStr = invoice?.dueDate || quotation.validUntil;
+    const dueDateStr = invoice?.dueDate;
     if (!dueDateStr) return 0;
-    const dueDate = new Date(dueDateStr);
+    const dueDate = new Date(dueDateStr + 'T00:00:00');
     const today = new Date();
     const diffTime = today.getTime() - dueDate.getTime();
     return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
@@ -109,6 +116,15 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
 
   return (
     <div className="max-w-5xl mx-auto py-6 px-4">
+      <div className="mb-4 p-4 bg-white border rounded-xl flex flex-wrap gap-3 items-center">
+        <span className="text-sm font-bold">Quotation versions</span>
+        {versions.map(version => <button key={version.id} onClick={() => onSelectVersion(version)}
+          className={`text-xs px-3 py-2 rounded-lg border ${version.id === quotation.id ? 'bg-indigo-600 text-white' : 'text-indigo-700'}`}>
+          {version.quoteNumber}{version.id === versions[0]?.id ? ' (latest)' : ''}
+        </button>)}
+        {!isLatestVersion && <p className="w-full text-xs text-amber-800">Earlier version preserved for reference. Open the latest version to send a quotation.</p>}
+        {quotation.status === 'Expired' && <p className="w-full text-xs text-rose-700">This quotation expired after {quotation.validUntil}. Revise it to make a new offer.</p>}
+      </div>
       {/* Top Controls Bar (Hidden during Print) */}
       <div className="print:hidden mb-6 bg-white border border-slate-200 rounded-xl p-4 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -141,7 +157,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                     : 'bg-amber-50 text-amber-700 border-amber-200'
                 }`}
               >
-                {isInvoiceOverdue && quotation.status !== 'Paid' ? `OVERDUE (${daysOverdue}d)` : quotation.status}
+                {activeTab === 'invoice' && invoice ? (isInvoiceOverdue ? `OVERDUE (${daysOverdue}d)` : invoice.status) : quotation.status}
               </span>
             </div>
             <p className="text-xs text-slate-500">
@@ -161,68 +177,41 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             Quotation
           </button>
           <button
-            onClick={() => {
-              if (!deliveryOrder) onGenerateDO(quotation);
-              setActiveTab('do');
-            }}
+            disabled={!deliveryOrder}
+            onClick={() => setActiveTab('do')}
             className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold transition ${
               activeTab === 'do' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Truck className="w-3.5 h-3.5" />
-            DO {deliveryOrder ? '' : '(Create)'}
+            DO
           </button>
           <button
-            onClick={() => {
-              if (!invoice) onGenerateInvoice(quotation);
-              setActiveTab('invoice');
-            }}
+            disabled={!invoice}
+            onClick={() => setActiveTab('invoice')}
             className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold transition ${
               activeTab === 'invoice' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Receipt className="w-3.5 h-3.5" />
-            Invoice {invoice ? '' : '(Create)'}
+            Invoice
           </button>
         </div>
 
         {/* Quick Convert & Output Action Buttons */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Combined DO & Invoice Button */}
-          {(!deliveryOrder || !invoice) && (
-            <button
-              onClick={() => onGenerateDOAndInvoice(quotation)}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition shadow-xs"
-              title="Generate both Delivery Order & Commercial Invoice together"
-            >
+          {isLatestVersion && !['Expired', 'Cancelled'].includes(quotation.status) && (
+            <button onClick={() => onGenerateDOAndInvoice(quotation)}
+              className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-2 rounded-lg">
               <Layers className="w-4 h-4" />
-              <span>⚡ Generate DO & Invoice</span>
+              {deliveryOrder && invoice ? 'Email DO + Invoice' : 'Issue & email DO + Invoice'}
             </button>
           )}
 
-          {/* Individual Quick Converts */}
-          <button
-            onClick={() => onGenerateDO(quotation)}
-            className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold px-3 py-2 rounded-lg transition shadow-2xs"
-            title="Generate Delivery Order from Quotation"
-          >
-            <Truck className="w-4 h-4" />
-            <span>DO</span>
-          </button>
-
-          <button
-            onClick={() => onGenerateInvoice(quotation)}
-            className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold px-3 py-2 rounded-lg transition shadow-2xs"
-            title="Generate Invoice from Quotation"
-          >
-            <Receipt className="w-4 h-4" />
-            <span>Invoice</span>
-          </button>
-
           {/* Mark Paid Button */}
-          {quotation.status !== 'Paid' && (
+          {invoice && invoice.status !== 'Paid' && (
             <button
-              onClick={() => onMarkAsPaid(quotation)}
+              onClick={() => invoice && onMarkAsPaid(invoice.id)}
               className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition shadow-xs"
               title="Mark Invoice as Paid"
             >
@@ -232,7 +221,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           )}
 
           {/* Status Quick Actions */}
-          {quotation.status === 'Sent (Pending PO)' && (
+          {isLatestVersion && quotation.status === 'Sent (Pending PO)' && (
             <button
               onClick={() => setShowPoModal(true)}
               className="flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold px-2.5 py-2 rounded-lg transition"
@@ -242,7 +231,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             </button>
           )}
 
-          {quotation.status !== 'Cancelled' && quotation.status !== 'Paid' && (
+          {isLatestVersion && quotation.status !== 'Cancelled' && quotation.status !== 'Paid' && (
             <button
               onClick={() => onUpdateStatus(quotation, 'Cancelled')}
               className="flex items-center gap-1 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 hover:border-rose-200 text-xs font-bold px-2.5 py-2 rounded-lg transition"
@@ -265,8 +254,9 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
 
           {/* Quick Button: Send Email to Client */}
           <button
+            disabled={activeTab === 'quotation' && (!isLatestVersion || quotation.status === 'Expired')}
             onClick={() => setShowEmailModal(true)}
-            className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3.5 py-2 rounded-lg transition shadow-xs active:scale-95"
+            className="flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3.5 py-2 rounded-lg transition shadow-xs active:scale-95"
             title="Send formatted document email to client"
           >
             <Send className="w-4 h-4" />
@@ -287,10 +277,10 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           {activeTab === 'quotation' && (
             <button
               onClick={() => onEditQuotation(quotation)}
-              className="p-2 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 transition"
-              title="Edit Quotation"
+              className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition"
+              title="Create a new quotation revision"
             >
-              <Edit className="w-4 h-4" />
+              <Edit className="w-4 h-4" /> Revise quotation
             </button>
           )}
         </div>
@@ -331,7 +321,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       )}
 
       {/* Overdue Alert Banner for Invoice / Quote */}
-      {isInvoiceOverdue && quotation.status !== 'Paid' && (
+      {isInvoiceOverdue && invoice && (
         <div className="print:hidden mb-6 bg-rose-50 border-2 border-rose-300 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
           <div className="flex items-start gap-3">
             <AlertCircle className="w-6 h-6 text-rose-600 shrink-0 mt-0.5 animate-bounce" />
@@ -343,12 +333,12 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                 </span>
               </h4>
               <p className="text-xs text-rose-800 mt-0.5">
-                Payment was expected within 1 month (Due: {invoice?.dueDate || quotation.validUntil}). Click to update status once payment is received.
+                Payment was expected within 1 month (Due: {invoice?.dueDate}). Click to update status once payment is received.
               </p>
             </div>
           </div>
           <button
-            onClick={() => onMarkAsPaid(quotation)}
+            onClick={() => invoice && onMarkAsPaid(invoice.id)}
             className="w-full sm:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-lg shadow-sm flex items-center justify-center gap-2 transition shrink-0 active:scale-95"
           >
             <CheckCircle className="w-4 h-4" />
@@ -562,12 +552,12 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                   DELIVERY ORDER
                 </span>
                 <p className="font-mono text-xl font-bold text-slate-900">
-                  {deliveryOrder?.doNumber || `DO-${quotation.quoteNumber}`}
+                  {deliveryOrder?.doNumber || `DO-${displayQuotation.quoteNumber}`}
                 </p>
                 <div className="text-xs text-slate-600 mt-2 space-y-1 font-medium">
-                  <p>Ref Quotation: <span className="font-mono font-bold text-slate-900">#{quotation.quoteNumber}</span></p>
-                  <p>Issue Date: <span className="text-slate-900 font-semibold">{deliveryOrder?.deliveryDate || quotation.date}</span></p>
-                  <p>Currency: <span className="text-slate-900 font-semibold">{quotation.currency}</span></p>
+                  <p>Ref Quotation: <span className="font-mono font-bold text-slate-900">#{displayQuotation.quoteNumber}</span></p>
+                  <p>Issue Date: <span className="text-slate-900 font-semibold">{deliveryOrder?.deliveryDate || displayQuotation.date}</span></p>
+                  <p>Currency: <span className="text-slate-900 font-semibold">{displayQuotation.currency}</span></p>
                 </div>
               </div>
             </div>
@@ -576,11 +566,11 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             <div className="bg-slate-50 rounded-lg p-5 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs border border-slate-200">
               <div>
                 <p className="text-slate-400 font-bold uppercase tracking-wider mb-1">Deliver To:</p>
-                {quotation.client.companyName && (
-                  <p className="font-bold text-sm text-slate-900">{quotation.client.companyName}</p>
+                {displayQuotation.client.companyName && (
+                  <p className="font-bold text-sm text-slate-900">{displayQuotation.client.companyName}</p>
                 )}
-                <p className="font-semibold text-slate-800">{quotation.client.name}</p>
-                <p className="text-slate-600 mt-1 whitespace-pre-line">{quotation.client.address}</p>
+                <p className="font-semibold text-slate-800">{displayQuotation.client.name}</p>
+                <p className="text-slate-600 mt-1 whitespace-pre-line">{displayQuotation.client.address}</p>
               </div>
             </div>
 
@@ -596,7 +586,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {quotation.items.map((item, idx) => (
+                {displayQuotation.items.map((item, idx) => (
                   <tr key={item.id} className="hover:bg-slate-50/50">
                     <td className="py-3 px-3 border-r border-slate-200 text-center font-mono text-slate-500">
                       {idx + 1}
@@ -622,12 +612,12 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Item Lines:</p>
-                <p className="font-bold text-slate-900 text-sm mt-0.5">{quotation.items.length} Line Items</p>
+                <p className="font-bold text-slate-900 text-sm mt-0.5">{displayQuotation.items.length} Line Items</p>
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Quantity Shipped:</p>
                 <p className="font-bold text-indigo-700 text-sm mt-0.5">
-                  {quotation.items.reduce((sum, item) => sum + item.quantity, 0)} Units
+                  {displayQuotation.items.reduce((sum, item) => sum + item.quantity, 0)} Units
                 </p>
               </div>
             </div>
@@ -637,7 +627,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
               <div>
                 <p className="font-bold text-slate-900 mb-1.5 uppercase tracking-wider">Terms & Conditions:</p>
                 <p className="whitespace-pre-line leading-relaxed text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                  {quotation.terms || '1. This quotation is valid for 60 days.\n2. Payment Terms: NET 30 days after item receival\n3. Leadtime: 1 week upon date of PO receival'}
+                  {displayQuotation.terms || '1. This quotation is valid for 60 days.\n2. Payment Terms: NET 30 days after item receival\n3. Leadtime: 1 week upon date of PO receival'}
                 </p>
               </div>
             </div>
@@ -678,13 +668,13 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                   INVOICE
                 </span>
                 <p className="font-mono text-xl font-bold text-slate-900">
-                  {invoice?.invoiceNumber || `INV-${quotation.quoteNumber}`}
+                  {invoice?.invoiceNumber || `INV-${displayQuotation.quoteNumber}`}
                 </p>
                 <div className="text-xs text-slate-600 mt-2 space-y-1 font-medium">
-                  <p>Issue Date: <span className="text-slate-900 font-semibold">{invoice?.date || quotation.date}</span></p>
-                  <p>Currency: <span className="text-slate-900 font-semibold">{quotation.currency}</span></p>
-                  <p>Payment Due: <span className="text-red-600 font-bold">{invoice?.dueDate || quotation.validUntil}</span></p>
-                  {quotation.poNumber && <p className="text-indigo-600 font-bold">PO Ref: {quotation.poNumber}</p>}
+                  <p>Issue Date: <span className="text-slate-900 font-semibold">{invoice?.date || displayQuotation.date}</span></p>
+                  <p>Currency: <span className="text-slate-900 font-semibold">{displayQuotation.currency}</span></p>
+                  <p>Payment Due: <span className="text-red-600 font-bold">{invoice?.dueDate || displayQuotation.validUntil}</span></p>
+                  {displayQuotation.poNumber && <p className="text-indigo-600 font-bold">PO Ref: {displayQuotation.poNumber}</p>}
                 </div>
               </div>
             </div>
@@ -693,18 +683,16 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             <div className="bg-slate-50 rounded-lg p-5 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs border border-slate-200">
               <div>
                 <p className="text-slate-400 font-bold uppercase tracking-wider mb-1">Invoice To:</p>
-                {quotation.client.companyName && (
-                  <p className="font-bold text-sm text-slate-900">{quotation.client.companyName}</p>
+                {displayQuotation.client.companyName && (
+                  <p className="font-bold text-sm text-slate-900">{displayQuotation.client.companyName}</p>
                 )}
-                <p className="font-semibold text-slate-800">{quotation.client.name}</p>
-                <p className="text-slate-600 mt-1 whitespace-pre-line">{quotation.client.address}</p>
+                <p className="font-semibold text-slate-800">{displayQuotation.client.name}</p>
+                <p className="text-slate-600 mt-1 whitespace-pre-line">{displayQuotation.client.address}</p>
               </div>
               <div className="space-y-1 text-slate-600 md:text-right">
                 <p className="text-slate-400 font-bold uppercase tracking-wider mb-1">Bank Payment Details:</p>
-                <p className="font-semibold text-slate-800">Payment Term: 30 days</p>
-                <p className="font-semibold text-slate-800">Bank: {companyProfile.bankName}</p>
-                <p className="font-mono font-bold text-slate-900">Account No: {companyProfile.bankAccountNo}</p>
-                <p>Account Name: {companyProfile.bankAccountName}</p>
+                <p className="font-semibold text-slate-800">Payment Term: {invoice?.paymentTerms}</p>
+                <p className="font-mono font-bold text-slate-900">{invoice?.bankDetails}</p>
               </div>
             </div>
 
@@ -720,7 +708,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {quotation.items.map((item, idx) => (
+                {displayQuotation.items.map((item, idx) => (
                   <tr key={item.id} className="hover:bg-slate-50/50">
                     <td className="py-3 px-3 border-r border-slate-200 font-medium text-slate-900">
                       {idx + 1}. {item.description}
@@ -729,10 +717,10 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                       {item.quantity}
                     </td>
                     <td className="py-3 px-3 border-r border-slate-200 text-right font-mono text-slate-800">
-                      {quotation.currency} {item.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      {displayQuotation.currency} {item.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
                     <td className="py-3 px-3 border-r border-slate-200 text-right font-mono font-bold text-slate-900">
-                      {quotation.currency} {item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      {displayQuotation.currency} {item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
                     <td className="py-3 px-3 text-slate-500 italic">
                       {item.remark || item.notes || ''}
@@ -749,7 +737,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                   Amount in Words:
                 </p>
                 <p className="text-xs font-bold text-indigo-950 uppercase tracking-wide">
-                  {numberToWords(quotation.grandTotal, quotation.currency)}
+                  {numberToWords(displayQuotation.grandTotal, displayQuotation.currency)}
                 </p>
               </div>
 
@@ -757,19 +745,19 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                 <div className="flex justify-between text-slate-600 font-medium">
                   <span>SUBTOTAL:</span>
                   <span className="font-mono font-bold text-slate-800">
-                    {quotation.currency} {quotation.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {displayQuotation.currency} {displayQuotation.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
                 </div>
-                {quotation.taxTotal > 0 && (
+                {displayQuotation.taxTotal > 0 && (
                   <div className="flex justify-between text-slate-600 font-medium">
                     <span>Tax Amount:</span>
-                    <span className="font-mono">+{quotation.currency} {quotation.taxTotal.toFixed(2)}</span>
+                    <span className="font-mono">+{displayQuotation.currency} {displayQuotation.taxTotal.toFixed(2)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm font-bold text-slate-900 border-t-2 border-slate-900 pt-2">
                   <span>Total Amount Due:</span>
                   <span className="font-mono text-emerald-700">
-                    {quotation.currency} {quotation.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {displayQuotation.currency} {displayQuotation.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
@@ -795,7 +783,8 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
         companyProfile={companyProfile}
         accessToken={accessToken}
         onLoginRequest={onLoginRequest}
-        defaultDocType={activeTab}
+        defaultDocType={activeTab !== 'quotation' && deliveryOrder && invoice ? 'both' : activeTab}
+        allowQuotation={isLatestVersion && quotation.status !== 'Expired'}
         onMarkAsEmailed={(q) => {
           if (q.status === 'Draft' || q.status === 'Sent (Pending PO)') {
             onUpdateStatus(q, 'Sent (Pending PO)');

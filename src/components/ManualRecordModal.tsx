@@ -205,7 +205,7 @@ export const ManualRecordModal: React.FC<ManualRecordModalProps> = ({
       const grandTotal = calculateGrandTotal();
 
       const newQuote: Quotation = {
-        id: `q-manual-${Date.now()}`,
+        id: crypto.randomUUID(),
         quoteNumber: docNumber || `QT-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
         client: clientObj,
         date: dateStr || new Date().toISOString().substring(0, 10),
@@ -235,7 +235,7 @@ export const ManualRecordModal: React.FC<ManualRecordModalProps> = ({
       }));
 
       const newDO: DeliveryOrder = {
-        id: `do-manual-${Date.now()}`,
+        id: crypto.randomUUID(),
         doNumber: docNumber || `DO-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
         quotationId: selectedQuotationId || `q-manual-ref-${Date.now()}`,
         quoteNumber: refQuoteNumber || 'MANUAL-REF',
@@ -276,7 +276,7 @@ export const ManualRecordModal: React.FC<ManualRecordModalProps> = ({
       const grandTotal = calculateGrandTotal();
 
       const newInv: Invoice = {
-        id: `inv-manual-${Date.now()}`,
+        id: crypto.randomUUID(),
         invoiceNumber: docNumber || `INV-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
         quotationId: selectedQuotationId || `q-manual-ref-${Date.now()}`,
         quoteNumber: refQuoteNumber || 'MANUAL-REF',
