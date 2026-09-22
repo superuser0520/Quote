@@ -175,9 +175,12 @@ export default function App() {
       updatedQuotes = [quote, ...quotations];
     }
 
+    const updatedInvoices = invoices.map(invoice => invoice.quotationId === quote.id
+      ? { ...invoice, poNumber: quote.poNumber, updatedAt: new Date().toISOString() } : invoice);
     setQuotations(updatedQuotes);
+    setInvoices(updatedInvoices);
 
-    syncAndSaveData(updatedQuotes);
+    syncAndSaveData(updatedQuotes, deliveryOrders, updatedInvoices);
 
     setSelectedQuote(quote);
     setView('preview');
@@ -334,11 +337,14 @@ export default function App() {
     };
 
     const updatedQuotes = quotations.map((item) => (item.id === q.id ? updatedQ : item));
+    const updatedInvoices = invoices.map(invoice => invoice.quotationId === q.id
+      ? { ...invoice, poNumber: updatedQ.poNumber, updatedAt: new Date().toISOString() } : invoice);
     setQuotations(updatedQuotes);
+    setInvoices(updatedInvoices);
 
     setSelectedQuote(updatedQ);
 
-    syncAndSaveData(updatedQuotes);
+    syncAndSaveData(updatedQuotes, deliveryOrders, updatedInvoices);
     showToast(`Status updated to "${status}" for ${q.quoteNumber}`);
   };
 
@@ -355,9 +361,13 @@ export default function App() {
       const plan = ready.find(p => p.quoteId === q.id);
       return plan ? linkPO(q, plan.email, savedFiles.get(plan.email.id)!) : q;
     });
+    const updatedInvoices = currentDatabase.current.invoices.map(invoice => {
+      const quote = updated.find(q => q.id === invoice.quotationId);
+      return quote ? { ...invoice, poNumber: quote.poNumber, updatedAt: new Date().toISOString() } : invoice;
+    });
     // Retry a failed previous database save even when these emails are already linked in memory.
     if (ready.length || pendingDatabase()) {
-      const saved = await syncAndSaveData(updated);
+      const saved = await syncAndSaveData(updated, currentDatabase.current.deliveryOrders, updatedInvoices);
       if (!saved) throw new Error('PO links are pending a database save. Use Retry save or refresh again before closing the app.');
     }
     return { linked: ready.length, alreadyLinked: final.alreadyLinked,
@@ -383,7 +393,10 @@ export default function App() {
     if (!target || target.status !== 'Sent (Pending PO)' || !isLatestQuotation(current, target)) throw new Error('Quotation is no longer pending. Refresh to review.');
     if (current.some(q => q.poEmailId === emailDetails.id || q.poNumber === poNumber)) throw new Error('This PO is already linked. Refresh to update the list.');
     const updatedQ = linkPO(target, {...emailDetails, poNumber}, files);
-    const saved = await syncAndSaveData(current.map(q => q.id === target.id ? updatedQ : q));
+    const updatedQuotes = current.map(q => q.id === target.id ? updatedQ : q);
+    const updatedInvoices = currentDatabase.current.invoices.map(invoice => invoice.quotationId === target.id
+      ? { ...invoice, poNumber: updatedQ.poNumber, updatedAt: new Date().toISOString() } : invoice);
+    const saved = await syncAndSaveData(updatedQuotes, currentDatabase.current.deliveryOrders, updatedInvoices);
     if (!saved) throw new Error('PO link is pending a database save. Use Retry save before closing the app.');
     showToast(`PO ${poNumber} linked to Quote ${quote.quoteNumber}! Status updated to PO Received.`);
   };
