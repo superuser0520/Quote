@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { ClientDetails, CompanyProfile, Invoice } from '../types';
+import { ClientDetails, CompanyProfile, Invoice, Quotation } from '../types';
 import { PdfAttachment } from './quotationPdf';
 
 const LEFT = 16;
@@ -11,9 +11,9 @@ const customerKey = (client: ClientDetails) =>
 
 const safeFilename = (value: string) => value.replace(/[^a-z0-9_-]/gi, '_');
 
-export const invoiceDueStatus = (invoice: Invoice) => {
+export const invoiceDueStatus = (invoice: Invoice, referenceDate = new Date()) => {
   if (invoice.status === 'Paid') return 'Paid';
-  const today = new Date();
+  const today = new Date(referenceDate);
   today.setHours(0, 0, 0, 0);
   const due = new Date(`${invoice.dueDate}T00:00:00`);
   const days = Math.ceil((due.getTime() - today.getTime()) / 86400000);
@@ -22,10 +22,21 @@ export const invoiceDueStatus = (invoice: Invoice) => {
   return `Due in ${days} day${days === 1 ? '' : 's'}`;
 };
 
-export const outstandingInvoicesForCustomer = (selected: Invoice, invoices: Invoice[]) => {
+export const invoiceIsOverdue = (invoice: Invoice, referenceDate = new Date()) =>
+  invoice.status !== 'Paid' && invoiceDueStatus(invoice, referenceDate).startsWith('Overdue');
+
+export const outstandingInvoicesForCustomer = (
+  selected: Invoice,
+  invoices: Invoice[],
+  quotations: Quotation[] = [],
+) => {
   const key = customerKey(selected.client);
   return invoices
     .filter((invoice) => customerKey(invoice.client) === key && invoice.status !== 'Paid')
+    .map((invoice) => {
+      const quotation = quotations.find((quote) => quote.id === invoice.quotationId);
+      return quotation?.poNumber ? { ...invoice, poNumber: quotation.poNumber } : invoice;
+    })
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 };
 
@@ -104,7 +115,11 @@ export function createStatementOfAccountPdf(
     ) as string[];
     const rowHeight = Math.max(9, picLines.length * 4 + 3);
     if (y + rowHeight > PAGE_BOTTOM) newPage();
-    if (index % 2 === 0) {
+    const overdue = invoiceIsOverdue(invoice);
+    if (overdue) {
+      pdf.setFillColor(254, 226, 226);
+      pdf.rect(LEFT, y, RIGHT - LEFT, rowHeight, 'F');
+    } else if (index % 2 === 0) {
       pdf.setFillColor(248, 250, 252);
       pdf.rect(LEFT, y, RIGHT - LEFT, rowHeight, 'F');
     }
@@ -113,7 +128,13 @@ export function createStatementOfAccountPdf(
     pdf.text(invoice.invoiceNumber, 18, y + 6);
     pdf.text(picLines, 45, y + 5);
     pdf.text(invoice.dueDate, 96, y + 6);
+    if (overdue) {
+      pdf.setTextColor(185, 28, 28);
+      pdf.setFont('helvetica', 'bold');
+    }
     pdf.text(invoiceDueStatus(invoice), 121, y + 6);
+    pdf.setTextColor(30, 41, 59);
+    pdf.setFont('helvetica', 'normal');
     pdf.text(invoice.poNumber || '-', 153, y + 6);
     pdf.text(`${invoice.currency} ${invoice.grandTotal.toFixed(2)}`, 192, y + 6, { align: 'right' });
     y += rowHeight;

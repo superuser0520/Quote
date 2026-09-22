@@ -8,6 +8,7 @@ import { saveServerDatabase, pendingDatabase } from '../src/lib/dbClient';
 import type { DatabaseState } from '../src/lib/dbClient';
 import type { Quotation } from '../src/types';
 import { deleteQuotationVersion } from '../src/lib/workflows';
+import { createStatementOfAccountPdf, invoiceDueStatus, invoiceIsOverdue, outstandingInvoicesForCustomer } from '../src/lib/statementOfAccountPdf';
 
 const now = new Date(2026, 8, 22, 12);
 test('deleting revisions keeps other versions and promotes the previous latest', () => {
@@ -41,6 +42,22 @@ test('PO payment analytics follows the latest linked invoice status', () => {
   const latestUnpaid = {...original, id: 'latest', status: 'Unpaid' as const, updatedAt: '2026-09-21T00:00:00.000Z'};
   assert.equal(quotationPaymentStatus({...state.quotations[0], status:'Paid'}, [olderPaid, latestUnpaid]), 'Unpaid');
   assert.equal(quotationPaymentStatus(state.quotations[0], [latestUnpaid, {...olderPaid, updatedAt:'2026-09-22T00:00:00.000Z'}]), 'Paid');
+});
+
+test('SOA uses the latest quotation PO and identifies overdue invoices', () => {
+  const issued = issueDocumentPair(fixture(), 'q-a', now).state;
+  const invoice = { ...issued.invoices[0], poNumber: undefined, dueDate: '2026-09-01' };
+  const quotations = issued.quotations.map((quote) => quote.id === 'q-a'
+    ? { ...quote, poNumber: '4503155546' }
+    : quote);
+  const outstanding = outstandingInvoicesForCustomer(invoice, [invoice], quotations);
+  assert.equal(outstanding[0].poNumber, '4503155546');
+  assert.equal(invoiceDueStatus(invoice, new Date('2026-09-23T12:00:00')), 'Overdue 22 days');
+  assert.equal(invoiceIsOverdue(invoice, new Date('2026-09-23T12:00:00')), true);
+  const pdf = createStatementOfAccountPdf(invoice.client, outstanding, issued.companyProfile);
+  const text = Buffer.from(pdf.data).toString('latin1');
+  assert.match(text, /4503155546/);
+  assert.match(text, /Overdue/);
 });
 function fixture(): DatabaseState {
   const quote: Quotation = {

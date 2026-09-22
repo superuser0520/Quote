@@ -225,7 +225,7 @@ export default function App() {
   };
 
   const handleGenerateStatementOfAccount = (selectedInvoice: Invoice) => {
-    const outstanding = outstandingInvoicesForCustomer(selectedInvoice, invoices);
+    const outstanding = outstandingInvoicesForCustomer(selectedInvoice, invoices, quotations);
     if (outstanding.length === 0) {
       window.alert('This customer has no outstanding invoices.');
       return;
@@ -633,7 +633,7 @@ export default function App() {
           isOpen={Boolean(soaInvoice)}
           onClose={() => setSoaInvoice(null)}
           selectedInvoice={soaInvoice}
-          outstandingInvoices={outstandingInvoicesForCustomer(soaInvoice, invoices)}
+          outstandingInvoices={outstandingInvoicesForCustomer(soaInvoice, invoices, quotations)}
           companyProfile={companyProfile}
           picOptions={savedClients.filter((client) =>
             (client.companyName || client.email || client.name).trim().toLowerCase() ===

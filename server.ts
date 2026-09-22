@@ -1,12 +1,16 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { poFilesRouter } from './poFiles';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const APP_PIN = (process.env.APP_PIN || '5465').trim();
+const AUTH_COOKIE = 'sooquoting_session';
+const sessions = new Set<string>();
 
 app.use(express.json({ limit: '10mb' }));
 
@@ -17,7 +21,6 @@ const DATA_DIR = process.env.DATA_DIR
   : path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 const DB_TEMP_FILE = path.join(DATA_DIR, 'db.json.tmp');
-app.use('/api/po-files', poFilesRouter(DATA_DIR));
 
 // Ensure data directory exists on Raspberry Pi filesystem
 if (!fs.existsSync(DATA_DIR)) {
@@ -33,6 +36,49 @@ app.get('/api/health', (_req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+const sessionToken = (cookieHeader = '') => cookieHeader
+  .split(';')
+  .map((part) => part.trim().split('='))
+  .find(([name]) => name === AUTH_COOKIE)?.[1];
+
+const authenticated = (req: express.Request) => {
+  const token = sessionToken(req.headers.cookie);
+  return Boolean(token && sessions.has(token));
+};
+
+app.get('/api/auth/status', (req, res) => {
+  res.json({ authenticated: authenticated(req) });
+});
+
+app.post('/api/auth/pin', (req, res) => {
+  const supplied = typeof req.body?.pin === 'string' ? req.body.pin.trim() : '';
+  const expectedBuffer = Buffer.from(APP_PIN);
+  const suppliedBuffer = Buffer.from(supplied);
+  const valid = suppliedBuffer.length === expectedBuffer.length
+    && timingSafeEqual(suppliedBuffer, expectedBuffer);
+  if (!valid) return res.status(401).json({ error: 'Incorrect PIN.' });
+
+  const token = randomBytes(32).toString('hex');
+  sessions.add(token);
+  const secure = req.secure || req.headers['x-forwarded-proto'] === 'https';
+  res.setHeader('Set-Cookie', `${AUTH_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`);
+  return res.json({ authenticated: true });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const token = sessionToken(req.headers.cookie);
+  if (token) sessions.delete(token);
+  res.setHeader('Set-Cookie', `${AUTH_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
+  return res.json({ authenticated: false });
+});
+
+app.use('/api', (req, res, next) => {
+  if (authenticated(req)) return next();
+  return res.status(401).json({ error: 'PIN required.' });
+});
+
+app.use('/api/po-files', poFilesRouter(DATA_DIR));
 
 // API Get Database
 app.get('/api/db', (_req, res) => {

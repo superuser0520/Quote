@@ -44,7 +44,7 @@ export const StatementOfAccountEmailModal: React.FC<StatementOfAccountEmailModal
       .map(([currency, total]) => `${currency} ${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
       .join(' / ');
     const invoiceSummary = outstandingInvoices
-      .map((invoice) => `- ${invoice.invoiceNumber}: ${invoiceDueStatus(invoice)} | PIC: ${invoice.client.name || '-'} (${invoice.client.email || '-'}) | ${invoice.currency} ${invoice.grandTotal.toFixed(2)}`)
+      .map((invoice) => `- ${invoice.invoiceNumber}: ${invoiceDueStatus(invoice)} | PO: ${invoice.poNumber || '-'} | PIC: ${invoice.client.name || '-'} (${invoice.client.email || '-'}) | ${invoice.currency} ${invoice.grandTotal.toFixed(2)}`)
       .join('\n');
     setRecipient(selectedInvoice.client.email || '');
     setCcEmail(companyProfile.email || '');
