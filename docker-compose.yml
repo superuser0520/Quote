@@ -14,7 +14,7 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - DATA_DIR=/app/data
-      - APP_PIN=${APP_PIN:-5465}
+      - APP_PASSWORD=${APP_PASSWORD:?Set APP_PASSWORD in the .env file}
     volumes:
       # Defaults to ./data on the Raspberry Pi. Set PI_DATA_DIR in .env if
       # you want an absolute host path such as /srv/quotexpress/data.

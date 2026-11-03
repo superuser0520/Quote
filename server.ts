@@ -8,9 +8,14 @@ import { poFilesRouter } from './poFiles';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
-const APP_PIN = (process.env.APP_PIN || '5465').trim();
+const APP_PASSWORD = (process.env.APP_PASSWORD || process.env.APP_PIN || '').trim();
 const AUTH_COOKIE = 'sooquoting_session';
 const sessions = new Set<string>();
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+
+if (!APP_PASSWORD) {
+  throw new Error('APP_PASSWORD is required. Set it in the server environment before starting SooQuoting.');
+}
 
 app.use(express.json({ limit: '10mb' }));
 
@@ -48,17 +53,40 @@ const authenticated = (req: express.Request) => {
 };
 
 app.get('/api/auth/status', (req, res) => {
-  res.json({ authenticated: authenticated(req) });
+  // A page load must always start locked. Invalidate any cookie left by the
+  // previous page instance; a successful login remains valid only in memory
+  // for the lifetime of the current page.
+  const token = sessionToken(req.headers.cookie);
+  if (token) sessions.delete(token);
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Set-Cookie', `${AUTH_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
+  res.json({ authenticated: false });
 });
 
-app.post('/api/auth/pin', (req, res) => {
-  const supplied = typeof req.body?.pin === 'string' ? req.body.pin.trim() : '';
-  const expectedBuffer = Buffer.from(APP_PIN);
+app.post('/api/auth/login', (req, res) => {
+  const client = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const previous = loginAttempts.get(client);
+  const attempt = !previous || previous.resetAt <= now
+    ? { count: 0, resetAt: now + 15 * 60 * 1000 }
+    : previous;
+  if (attempt.count >= 10) {
+    res.setHeader('Retry-After', String(Math.ceil((attempt.resetAt - now) / 1000)));
+    return res.status(429).json({ error: 'Too many login attempts. Please wait 15 minutes and try again.' });
+  }
+
+  const supplied = typeof req.body?.password === 'string' ? req.body.password : '';
+  const expectedBuffer = Buffer.from(APP_PASSWORD);
   const suppliedBuffer = Buffer.from(supplied);
   const valid = suppliedBuffer.length === expectedBuffer.length
     && timingSafeEqual(suppliedBuffer, expectedBuffer);
-  if (!valid) return res.status(401).json({ error: 'Incorrect PIN.' });
+  if (!valid) {
+    attempt.count += 1;
+    loginAttempts.set(client, attempt);
+    return res.status(401).json({ error: 'Incorrect password.' });
+  }
 
+  loginAttempts.delete(client);
   const token = randomBytes(32).toString('hex');
   sessions.add(token);
   const secure = req.secure || req.headers['x-forwarded-proto'] === 'https';
@@ -75,7 +103,7 @@ app.post('/api/auth/logout', (req, res) => {
 
 app.use('/api', (req, res, next) => {
   if (authenticated(req)) return next();
-  return res.status(401).json({ error: 'PIN required.' });
+  return res.status(401).json({ error: 'Password required.' });
 });
 
 app.use('/api/po-files', poFilesRouter(DATA_DIR));
